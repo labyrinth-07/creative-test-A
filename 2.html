@@ -15,7 +15,27 @@
         .instruction-text { margin: 15px auto; color: #aaa; max-width: 600px; line-height: 1.6; font-size: 16px; padding: 20px; }
         #start-btn { padding: 15px 50px; background: #880000; color: #fff; font-weight: bold; border: 1px solid #f00; cursor: pointer; font-size: 18px; border-radius: 50px; transition: 0.3s; }
         #start-btn:hover { background: #ff0000; transform: scale(1.05); box-shadow: 0 0 20px #f00; }
-        #aut-ui { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; background: rgba(225, 225, 225, 0.1); backdrop-filter: none; padding: 40px; border-radius: 20px; width: 450px; text-align: center; box-shadow: none; border: none; color: #fff; pointer-events: auto; }
+        #aut-ui {
+                    display: none;
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 9999;
+
+                    /* 关键修改：背景完全透明，移除所有边框和阴影 */
+                    background: transparent !important;
+                    backdrop-filter: none !important;
+                    -webkit-backdrop-filter: none !important;
+                    box-shadow: none !important;
+                    border: none !important;
+
+                    /* 锁定宽度，防止全透后排版乱掉 */
+                    width: 450px;
+                    text-align: center;
+                    color: #fff;
+                    pointer-events: auto;
+                }
         #aut-input { width: 100%; padding: 15px; background: rgba(0, 0, 0, 0.5); border: 2px solid #880000; border-radius: 10px; font-size: 18px; color: #fff; outline: none; box-sizing: border-box; margin-top: 20px; }
         #loading-msg { display: none; color: #ff0000; font-weight: bold; margin-top: 20px; }
     </style>
