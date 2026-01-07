@@ -53,7 +53,7 @@
 </div>
 
 <div id="aut-ui">
-    <h2 id="item-display" style="margin:0; font-size:28px;">物品：砖头</h2>
+    <h2 id="item-display" style="margin:0; font-size:28px;">物品：椅子</h2>
     <p id="timer-display" style="color:#ff0000; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
     <input type="text" id="aut-input" placeholder="输入用途并回车提交...">
     <div style="margin-top:20px; color:#aaa; font-size:14px; display:flex; justify-content:space-between;">
@@ -65,7 +65,7 @@
 
 <script>
 const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
-const items = ["砖头", "回形针", "毛毯"];
+const items = ["椅子", "咖啡杯", "报纸"];
 let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
 let song, fft, rift, particles = [];
 
