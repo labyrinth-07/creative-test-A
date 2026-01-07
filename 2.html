@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模式 2: 深渊视觉实验</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #020000; font-family: 'Microsoft YaHei', sans-serif; }
+        canvas { display: block; image-rendering: pixelated; }
+
+        /* 启动界面 */
+        #setup-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            pointer-events: auto; text-align: center; color: #fff;
+        }
+
+        h1 { color: #cc0000; letter-spacing: 4px; margin-bottom: 10px; font-weight: 800; text-shadow: 0 0 10px #f00; }
+
+        .instruction-text {
+            margin: 15px auto; color: #aaa; max-width: 600px;
+            line-height: 1.6; font-size: 16px; padding: 20px;
+        }
+
+        button {
+            padding: 15px 50px; background: #880000; color: #fff; font-weight: bold; border: none; cursor: pointer;
+            font-size: 18px; border-radius: 50px; transition: 0.3s; border: 1px solid #f00;
+        }
+        button:hover { background: #ff0000; transform: scale(1.05); box-shadow: 0 0 20px #f00; }
+
+        /* 答题面板 - 深色毛玻璃效果适应深渊氛围 */
+        #aut-ui {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 9999;
+            background: rgba(20, 0, 0, 0.7);
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+            padding: 40px; border-radius: 20px; width: 450px; text-align: center;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(136, 0, 0, 0.4);
+            color: #fff; pointer-events: auto;
+        }
+
+        #aut-input {
+            width: 100%; padding: 15px; background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #880000; border-radius: 10px; font-size: 18px; color: #fff;
+            outline: none; box-sizing: border-box; margin-top: 20px;
+        }
+
+        #next-item-btn { margin-top:25px; background:none; border:none; color:#888; text-decoration:underline; cursor:pointer; }
+    </style>
+</head>
+<body>
+
+<div id="setup-overlay">
+    <h1>深渊模式</h1>
+    <div class="instruction-text">
+        本实验依据于 Alternative Uses Task，测试你在充满压迫感的情境下的创造力。<br>
+        请针对下方展示的常用物品，在有限时间内尽可能多地说出它的用途，越多越好。
+    </div>
+    <button id="start-btn">开始实验</button>
+</div>
+
+<div id="aut-ui">
+    <h2 id="item-display" style="margin:0; font-size:28px;">物品：砖头</h2>
+    <p id="timer-display" style="color:#ff0000; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
+
+    <input type="text" id="aut-input" placeholder="输入用途并回车提交...">
+
+    <div style="margin-top:20px; color:#aaa; font-size:14px; display:flex; justify-content:space-between;">
+        <span id="progress-text">进度：1 / 3</span>
+        <span>已提交: <span id="ans-count" style="color:#ff0000;">0</span></span>
+    </div>
+    <button id="next-item-btn">跳到下一个物品</button>
+</div>
+
+<script>
+// --- 1. 配置与初始化 ---
+const _supabase = supabase.createClient(
+    'https://ebqbvpjvwdewgjlxuwrf.supabase.co',
+    'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu'
+);
+
+const items = ["砖头", "回形针", "毛毯"];
+let currentItemIdx = 0;
+let answers = [];
+let timeLeft = 180;
+let timer;
+let isRunning = false;
+
+// 音频控制
+let song;
+window.addEventListener('load', () => {
+    // p5.js 加载 2.mp3
+});
+
+// --- 2. p5.js 视觉逻辑 (The Rift) ---
+let fft, rift, particles = [];
+
+function setup() {
+    pixelDensity(1);
+    let cnv = createCanvas(windowWidth, windowHeight);
+    cnv.elt.getContext('2d').imageSmoothingEnabled = false;
+    fft = new p5.FFT(0.8, 256);
+    rift = new OrganicRift();
+}
+
+function draw() {
+    background(2, 0, 0);
+    if (!isRunning) return;
+
+    let spectrum = fft.analyze();
+    let bass = fft.getEnergy("bass");
+    let energy = spectrum.reduce((a,b)=>a+b, 0) / spectrum.length / 255;
+
+    rift.update(bass);
+    rift.draw();
+
+    if (energy > 0.35 || bass > 210) {
+        for(let i=0; i<10; i++) particles.push(new RiftParticle());
+    }
+
+    let ctx = drawingContext;
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        ctx.save();
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = '#FF0000';
+        ctx.beginPath(); ctx.rect(Math.floor(p.x), Math.floor(p.y), Math.floor(p.size), Math.floor(p.size)); ctx.fill();
+        ctx.restore();
+    }
+}
+
+class OrganicRift {
+    constructor() { this.noiseOffset = 0; }
+    update(bass) { this.bass = bass; this.noiseOffset += 0.05 + (bass/255)*0.1; }
+    draw() {
+        push(); translate(width/2, height/2);
+        let radius = 150 + this.bass * 0.3;
+        drawingContext.shadowBlur = 40 + this.bass * 0.2; drawingContext.shadowColor = '#FF0000';
+        noStroke(); fill(10, 0, 0);
+        beginShape();
+        for (let a = 0; a < TWO_PI; a += 0.05) {
+            let r = radius + map(noise(map(cos(a),-1,1,0,3), map(sin(a),-1,1,0,3), this.noiseOffset), 0, 1, -60, 60);
+            vertex(r * cos(a), r * sin(a));
+        }
+        endShape(CLOSE);
+        stroke(180, 0, 0); strokeWeight(2); noFill();
+        beginShape();
+        for (let a = 0; a < TWO_PI; a += 0.1) {
+            let r = radius + map(noise(map(cos(a),-1,1,0,3), map(sin(a),-1,1,0,3), this.noiseOffset), 0, 1, -50, 50);
+            vertex(r * cos(a), r * sin(a));
+        }
+        endShape(CLOSE);
+        pop();
+    }
+}
+
+class RiftParticle {
+    constructor() {
+        let angle = random(TWO_PI);
+        this.x = width/2 + cos(angle) * 40; this.y = height/2 + sin(angle) * 40;
+        let speed = 10 + random(20); this.vx = cos(angle)*speed; this.vy = sin(angle)*speed;
+        this.life = 1.0; this.size = 2 + random(4);
+    }
+}
+
+// --- 3. 实验流程逻辑 ---
+function startItemSession() {
+    timeLeft = 180;
+    document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
+    document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
+    document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+    document.getElementById('ans-count').innerText = answers.filter(a => a.item === items[currentItemIdx]).length;
+    document.getElementById('aut-input').focus();
+
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+        if (timeLeft <= 0) switchNextItem();
+    }, 1000);
+}
+
+function switchNextItem() {
+    if (currentItemIdx < items.length - 1) {
+        currentItemIdx++;
+        startItemSession();
+    } else {
+        finishAndUpload();
+    }
+}
+
+document.getElementById('aut-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && e.target.value.trim() !== "") {
+        answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
+        e.target.value = "";
+        let currentItemAnswers = answers.filter(a => a.item === items[currentItemIdx]).length;
+        document.getElementById('ans-count').innerText = currentItemAnswers;
+    }
+});
+
+async function finishAndUpload() {
+    clearInterval(timer);
+    const ui = document.getElementById('aut-ui');
+    ui.innerHTML = "<h3>正在提交所有实验数据...</h3>";
+    try {
+        const { error } = await _supabase
+            .from('experiment_results_A')
+            .insert([{ mode_name: "深渊模式", responses: JSON.stringify(answers) }]);
+        if (error) throw error;
+        ui.innerHTML = "<h3 style='color:green;'>上传成功！实验结束。</h3>";
+    } catch (err) {
+        ui.innerHTML = "<h3 style='color:red;'>上传失败：" + err.message + "</h3>";
+    }
+}
+
+// --- 4. 按钮绑定 ---
+document.getElementById('start-btn').onclick = () => {
+    document.getElementById('setup-overlay').style.display = 'none';
+    document.getElementById('aut-ui').style.display = 'block';
+    // 加载并播放 2.mp3
+    song = loadSound('2.mp3', () => {
+        song.loop();
+        isRunning = true;
+        startItemSession();
+    });
+};
+
+document.getElementById('next-item-btn').onclick = () => {
+    if(confirm("确定要跳到下一个物品吗？")) switchNextItem();
+};
+
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>
