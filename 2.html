@@ -22,22 +22,22 @@
         .instruction-text { margin: 15px auto; color: #aaa; max-width: 600px; line-height: 1.6; font-size: 16px; padding: 20px; }
 
         #start-btn {
-            padding: 15px 50px; background: #333; color: #666; font-weight: bold; border: 1px solid #444;
-            cursor: not-allowed; font-size: 18px; border-radius: 50px; transition: 0.3s;
+            padding: 15px 50px; background: #880000; color: #fff; font-weight: bold; border: 1px solid #f00;
+            cursor: pointer; font-size: 18px; border-radius: 50px; transition: 0.3s;
         }
-        /* 当加载完成后激活按钮样式 */
-        #start-btn.ready { background: #880000; color: #fff; border: 1px solid #f00; cursor: pointer; }
-        #start-btn.ready:hover { background: #ff0000; transform: scale(1.05); box-shadow: 0 0 20px #f00; }
+        #start-btn:hover { background: #ff0000; transform: scale(1.05); box-shadow: 0 0 20px #f00; }
 
         #aut-ui {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 9999; background: rgba(20, 0, 0, 0.2); backdrop-filter: blur(15px);
+            z-index: 9999; background: rgba(20, 0, 0, 0.01); backdrop-filter: blur(15px);
             padding: 40px; border-radius: 20px; width: 450px; text-align: center;
             box-shadow: 0 0 30px rgba(255, 0, 0, 0.75); border: 1px solid rgba(136, 0, 0, 0.4);
             color: #fff; pointer-events: auto;
         }
         #aut-input { width: 100%; padding: 15px; background: rgba(0, 0, 0, 0.5); border: 2px solid #880000; border-radius: 10px; font-size: 18px; color: #fff; outline: none; box-sizing: border-box; margin-top: 20px; }
         #next-item-btn { margin-top:25px; background:none; border:none; color:#888; text-decoration:underline; cursor:pointer; }
+
+        #loading-msg { display: none; color: #ff0000; font-weight: bold; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -46,9 +46,10 @@
     <h1>深渊模式</h1>
     <div class="instruction-text">
         本实验依据于 Alternative Uses Task，测试你在充满压迫感的情境下的创造力。<br>
-        <span id="load-status" style="color: #ff0000;">系统初始化中，请稍候...</span>
+        选择一件日常生活中随处可见的常用物品，在有限时间内尽可能多地说出这一物件的用途，越多越好。
     </div>
-    <button id="start-btn" disabled>请稍候...</button>
+    <button id="start-btn">开始实验</button>
+    <div id="loading-msg">资源加载中，请稍候...</div>
 </div>
 
 <div id="aut-ui">
@@ -63,24 +64,12 @@
 </div>
 
 <script>
-// --- 1. 配置与初始化 ---
 const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
 const items = ["砖头", "回形针", "毛毯"];
 let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
 let song, fft, rift, particles = [];
 
-// --- 核心优化：确保资源加载完毕后才允许开始 ---
-function preload() {
-    song = loadSound('2.mp3', () => {
-        // 加载成功回调
-        const btn = document.getElementById('start-btn');
-        btn.innerText = "开始实验";
-        btn.classList.add('ready');
-        btn.disabled = false;
-        document.getElementById('load-status').innerText = "系统就绪，点击下方按钮开始。";
-    });
-}
-
+// 移除 preload，改在点击后加载
 function setup() {
     pixelDensity(1);
     let cnv = createCanvas(windowWidth, windowHeight);
@@ -113,7 +102,6 @@ function draw() {
     }
 }
 
-// 裂口与粒子类逻辑保持不变
 class OrganicRift {
     constructor() { this.noiseOffset = 0; }
     update(bass) { this.bass = bass; this.noiseOffset += 0.05 + (bass/255)*0.1; }
@@ -138,6 +126,7 @@ class OrganicRift {
         pop();
     }
 }
+
 class RiftParticle {
     constructor() {
         let angle = random(TWO_PI);
@@ -147,7 +136,7 @@ class RiftParticle {
     }
 }
 
-// --- 核心优化：计时器与音频播放严格同步 ---
+// 计时器逻辑
 function startItemSession() {
     timeLeft = 180;
     document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
@@ -155,7 +144,6 @@ function startItemSession() {
     document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
     document.getElementById('ans-count').innerText = "0";
 
-    // 自动聚焦
     setTimeout(() => { document.getElementById('aut-input').focus(); }, 100);
 
     if(timer) clearInterval(timer);
@@ -186,7 +174,7 @@ document.getElementById('aut-input').addEventListener('keypress', (e) => {
 
 async function finishAndUpload() {
     clearInterval(timer);
-    song.stop(); // 停止音乐
+    if(song) song.stop();
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>正在提交所有实验数据...</h3>";
     try {
@@ -195,21 +183,36 @@ async function finishAndUpload() {
     } catch (err) { ui.innerHTML = "<h3>网络错误</h3>"; }
 }
 
-// --- 核心优化：点击瞬间触发 ---
+// 修改后的点击逻辑：先加载音乐，成功后再开始计时
 document.getElementById('start-btn').onclick = function() {
-    if(!this.classList.contains('ready')) return;
+    const btn = this;
+    const msg = document.getElementById('loading-msg');
 
-    // 1. 立即停止遮罩
-    document.getElementById('setup-overlay').style.display = 'none';
-    document.getElementById('aut-ui').style.display = 'block';
+    btn.disabled = true;
+    btn.innerText = "加载中...";
+    msg.style.display = "block";
 
-    // 2. 激活音频并立即循环
+    // 用户交互后激活音频上下文
     userStartAudio();
-    song.loop();
 
-    // 3. 开启视觉与逻辑计时
-    isRunning = true;
-    startItemSession();
+    // 在此处动态加载音乐
+    song = loadSound('2.mp3',
+        // 成功回调
+        () => {
+            document.getElementById('setup-overlay').style.display = 'none';
+            document.getElementById('aut-ui').style.display = 'block';
+            song.loop();
+            isRunning = true;
+            startItemSession(); // 音乐播放的同时才开始计时
+        },
+        // 失败回调
+        () => {
+            alert("音乐加载失败，请检查 2.mp3 文件是否存在。");
+            btn.disabled = false;
+            btn.innerText = "开始实验";
+            msg.style.display = "none";
+        }
+    );
 };
 
 document.getElementById('next-item-btn').onclick = () => { if(confirm("确定要跳到下一个物品吗？")) switchNextItem(); };
