@@ -19,25 +19,36 @@
         }
 
         h1 { color: #cc0000; letter-spacing: 4px; margin-bottom: 10px; font-weight: 800; text-shadow: 0 0 10px #f00; }
-        .instruction-text { margin: 15px auto; color: #aaa; max-width: 600px; line-height: 1.6; font-size: 16px; padding: 20px; }
 
-        #start-btn {
-            padding: 15px 50px; background: #880000; color: #fff; font-weight: bold; border: 1px solid #f00;
-            cursor: pointer; font-size: 18px; border-radius: 50px; transition: 0.3s;
+        .instruction-text {
+            margin: 15px auto; color: #aaa; max-width: 600px;
+            line-height: 1.6; font-size: 16px; padding: 20px;
         }
-        #start-btn:hover { background: #ff0000; transform: scale(1.05); box-shadow: 0 0 20px #f00; }
+
+        button {
+            padding: 15px 50px; background: #880000; color: #fff; font-weight: bold; border: none; cursor: pointer;
+            font-size: 18px; border-radius: 50px; transition: 0.3s; border: 1px solid #f00;
+        }
+        button:hover { background: #ff0000; transform: scale(1.05); box-shadow: 0 0 20px #f00; }
 
         #aut-ui {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 9999; background: rgba(20, 0, 0, 0.01); backdrop-filter: blur(15px);
+            z-index: 9999;
+            background: rgba(20, 0, 0, 0.4); /* 调整了透明度以防遮挡 */
+            backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
             padding: 40px; border-radius: 20px; width: 450px; text-align: center;
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.75); border: 1px solid rgba(136, 0, 0, 0.4);
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(136, 0, 0, 0.4);
             color: #fff; pointer-events: auto;
         }
-        #aut-input { width: 100%; padding: 15px; background: rgba(0, 0, 0, 0.5); border: 2px solid #880000; border-radius: 10px; font-size: 18px; color: #fff; outline: none; box-sizing: border-box; margin-top: 20px; }
-        #next-item-btn { margin-top:25px; background:none; border:none; color:#888; text-decoration:underline; cursor:pointer; }
 
-        #loading-msg { display: none; color: #ff0000; font-weight: bold; margin-top: 10px; }
+        #aut-input {
+            width: 100%; padding: 15px; background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #880000; border-radius: 10px; font-size: 18px; color: #fff;
+            outline: none; box-sizing: border-box; margin-top: 20px;
+        }
+
+        #next-item-btn { margin-top:25px; background:none; border:none; color:#888; text-decoration:underline; cursor:pointer; }
     </style>
 </head>
 <body>
@@ -46,16 +57,17 @@
     <h1>深渊模式</h1>
     <div class="instruction-text">
         本实验依据于 Alternative Uses Task，测试你在充满压迫感的情境下的创造力。<br>
-        选择一件日常生活中随处可见的常用物品，在有限时间内尽可能多地说出这一物件的用途，越多越好。
+        请针对下方展示的常用物品，在有限时间内尽可能多地说出它的用途，越多越好。
     </div>
     <button id="start-btn">开始实验</button>
-    <div id="loading-msg">资源加载中，请稍候...</div>
 </div>
 
 <div id="aut-ui">
     <h2 id="item-display" style="margin:0; font-size:28px;">物品：砖头</h2>
     <p id="timer-display" style="color:#ff0000; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
+
     <input type="text" id="aut-input" placeholder="输入用途并回车提交...">
+
     <div style="margin-top:20px; color:#aaa; font-size:14px; display:flex; justify-content:space-between;">
         <span id="progress-text">进度：1 / 3</span>
         <span>已提交: <span id="ans-count" style="color:#ff0000;">0</span></span>
@@ -64,31 +76,56 @@
 </div>
 
 <script>
-const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
-const items = ["砖头", "回形针", "毛毯"];
-let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
-let song, fft, rift, particles = [];
+// --- 1. 配置与初始化 ---
+const _supabase = supabase.createClient(
+    'https://ebqbvpjvwdewgjlxuwrf.supabase.co',
+    'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu'
+);
 
-// 移除 preload，改在点击后加载
+const items = ["砖头", "回形针", "毛毯"];
+let currentItemIdx = 0;
+let answers = [];
+let timeLeft = 180;
+let timer;
+let isRunning = false;
+
+// 预加载音频 (p5.js 会在 preload 或交互后处理音频上下文)
+let song;
+function preload() {
+    // 强制使用 HTML5 Audio 元素以支持加载即播放策略
+    song = loadSound('2.mp3');
+}
+
+// --- 2. p5.js 视觉逻辑 ---
+let fft, rift, particles = [];
+
 function setup() {
     pixelDensity(1);
     let cnv = createCanvas(windowWidth, windowHeight);
     cnv.elt.getContext('2d').imageSmoothingEnabled = false;
     fft = new p5.FFT(0.8, 256);
     rift = new OrganicRift();
+
+    // 静音尝试自动播放，绕过等待加载的延迟
+    song.setVolume(0);
+    song.loop();
 }
 
 function draw() {
     background(2, 0, 0);
     if (!isRunning) return;
+
     let spectrum = fft.analyze();
     let bass = fft.getEnergy("bass");
     let energy = spectrum.reduce((a,b)=>a+b, 0) / spectrum.length / 255;
+
     rift.update(bass);
     rift.draw();
+
     if (energy > 0.35 || bass > 210) {
         for(let i=0; i<10; i++) particles.push(new RiftParticle());
     }
+
     let ctx = drawingContext;
     for (let i = particles.length - 1; i >= 0; i--) {
         let p = particles[i];
@@ -136,15 +173,14 @@ class RiftParticle {
     }
 }
 
-// 计时器逻辑
+// --- 3. 实验流程逻辑 ---
 function startItemSession() {
     timeLeft = 180;
     document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
     document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
     document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
     document.getElementById('ans-count').innerText = "0";
-
-    setTimeout(() => { document.getElementById('aut-input').focus(); }, 100);
+    document.getElementById('aut-input').focus();
 
     if(timer) clearInterval(timer);
     timer = setInterval(() => {
@@ -174,48 +210,38 @@ document.getElementById('aut-input').addEventListener('keypress', (e) => {
 
 async function finishAndUpload() {
     clearInterval(timer);
-    if(song) song.stop();
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>正在提交所有实验数据...</h3>";
     try {
-        const { error } = await _supabase.from('experiment_results_A').insert([{ mode_name: "深渊模式", responses: JSON.stringify(answers) }]);
-        ui.innerHTML = error ? "<h3 style='color:red;'>上传失败</h3>" : "<h3 style='color:green;'>上传成功！实验结束。</h3>";
-    } catch (err) { ui.innerHTML = "<h3>网络错误</h3>"; }
+        const { error } = await _supabase
+            .from('experiment_results_A')
+            .insert([{ mode_name: "深渊模式", responses: JSON.stringify(answers) }]);
+        if (error) throw error;
+        ui.innerHTML = "<h3 style='color:green;'>上传成功！实验结束。</h3>";
+    } catch (err) {
+        ui.innerHTML = "<h3 style='color:red;'>上传失败：" + err.message + "</h3>";
+    }
 }
 
-// 修改后的点击逻辑：先加载音乐，成功后再开始计时
-document.getElementById('start-btn').onclick = function() {
-    const btn = this;
-    const msg = document.getElementById('loading-msg');
+// --- 4. 按钮绑定 ---
+document.getElementById('start-btn').onclick = () => {
+    // 激活音频：取消静音并确保播放
+    if (getAudioContext().state !== 'running') {
+        getAudioContext().resume();
+    }
+    song.setVolume(1.0);
+    
+    document.getElementById('setup-overlay').style.display = 'none';
+    document.getElementById('aut-ui').style.display = 'block';
 
-    btn.disabled = true;
-    btn.innerText = "加载中...";
-    msg.style.display = "block";
-
-    // 用户交互后激活音频上下文
-    userStartAudio();
-
-    // 在此处动态加载音乐
-    song = loadSound('2.mp3',
-        // 成功回调
-        () => {
-            document.getElementById('setup-overlay').style.display = 'none';
-            document.getElementById('aut-ui').style.display = 'block';
-            song.loop();
-            isRunning = true;
-            startItemSession(); // 音乐播放的同时才开始计时
-        },
-        // 失败回调
-        () => {
-            alert("音乐加载失败，请检查 2.mp3 文件是否存在。");
-            btn.disabled = false;
-            btn.innerText = "开始实验";
-            msg.style.display = "none";
-        }
-    );
+    isRunning = true;
+    startItemSession();
 };
 
-document.getElementById('next-item-btn').onclick = () => { if(confirm("确定要跳到下一个物品吗？")) switchNextItem(); };
+document.getElementById('next-item-btn').onclick = () => {
+    if(confirm("确定要跳到下一个物品吗？")) switchNextItem();
+};
+
 function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 </script>
 </body>
