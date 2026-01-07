@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模式 1: 欢乐派对</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #FAFAFA; font-family: 'Microsoft YaHei', sans-serif; user-select: none; }
+        canvas { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
+        #ui-layer { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box; color: #222; }
+        #setup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; pointer-events: auto; }
+        button { background: #FF4081; color: white; border: none; padding: 15px 50px; font-size: 18px; letter-spacing: 1px; cursor: pointer; border-radius: 50px; font-weight: bold; margin-top: 30px; transition: 0.2s; box-shadow: 0 5px 15px rgba(255, 64, 129, 0.3); }
+        button:hover { transform: scale(1.05); background: #f50057; }
+        .header-info h1 { font-size: 42px; color: #333; }
+        .header-info p { margin: 5px 0 0 0; opacity: 0.6; font-weight: 500; }
+        #aut-ui { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; background: rgba(255, 255, 255, 0.98); padding: 40px; border-radius: 20px; width: 450px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,0.2); border: 1px solid #eee; pointer-events: auto; }
+        #aut-input { width: 100%; padding: 15px; border: 2px solid #FF4081; border-radius: 10px; font-size: 18px; outline: none; box-sizing: border-box; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<div id="setup-overlay">
+    <h1 style="color:#333;">派对视觉实验</h1>
+    <p style="color:#666; margin-top:10px;">背景音乐: 1.mp3 (固定)</p>
+    <button id="start-btn">开始实验</button>
+</div>
+
+<div id="ui-layer">
+    <div class="header-info"><h1>欢乐模式</h1><p>音箱与气球</p></div>
+</div>
+
+<div id="aut-ui">
+    <h2 id="item-display" style="color:#333; margin:0; font-size:28px;">物品：砖头</h2>
+    <p id="timer-display" style="color:#FF4081; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
+    <input type="text" id="aut-input" placeholder="输入一种用途，按回车提交...">
+    <div style="margin-top:20px; color:#888; font-size:14px; display:flex; justify-content:space-between;">
+        <span>流程：砖头 -> 回形针 -> 毛毯</span>
+        <span>已提交: <span id="ans-count" style="color:#FF4081; font-weight:bold;">0</span></span>
+    </div>
+    <button id="end-early" style="margin-top:25px; background:none; border:none; color:#bbb; text-decoration:underline; cursor:pointer;">提前结束实验</button>
+</div>
+
+<canvas id="canvas"></canvas>
+<audio id="bgm-player" loop></audio>
+
+<script>
+// --- 重要：手动粘贴你的 Anon Key 时，请确保前后没有空格 ---
+const _supabase = supabase.createClient(
+    'https://ebqbvpjvwdewgjlxuwrf.supabase.co',
+    'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu' // 请重新从图片 对应的后台复制粘贴到这里
+);
+
+const items = ["砖头", "回形针", "毛毯"];
+let currentItemIdx = 0, answers = [], timeLeft = 180, timer;
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let shapes = [];
+const config = { width: window.innerWidth, height: window.innerHeight };
+
+function resize() { config.width = canvas.width = window.innerWidth; config.height = canvas.height = window.innerHeight; }
+window.addEventListener('resize', resize);
+resize();
+
+class CartoonSpeaker {
+    constructor() { this.w = 150; this.h = 180; this.update(0); this.bounce = 0; }
+    update(energy) { this.bounce = energy * 20; this.x = config.width - this.w - 50; this.y = config.height - this.h - 50; }
+    draw(ctx) {
+        ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h/2);
+        const scale = 1 + this.bounce * 0.005; ctx.scale(scale, scale);
+        ctx.fillStyle = '#333';
+        if (ctx.roundRect) ctx.roundRect(-this.w/2, -this.h/2, this.w, this.h, 20); else ctx.rect(-this.w/2, -this.h/2, this.w, this.h);
+        ctx.fill();
+        const wooferSize = 50 + this.bounce;
+        ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(0, 20, 60, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#444'; ctx.beginPath(); ctx.arc(0, 20, wooferSize, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(0, 20, wooferSize * 0.3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = '#555'; ctx.beginPath(); ctx.arc(0, -50, 20, 0, Math.PI*2); ctx.fill();
+        if (this.bounce > 8) { ctx.strokeStyle = '#FF4081'; ctx.lineWidth = 3 + this.bounce * 0.1; ctx.beginPath(); ctx.arc(0, 20, wooferSize + 10, 0, Math.PI*2); ctx.stroke(); }
+        ctx.restore();
+    }
+}
+
+class Balloon {
+    constructor() {
+        this.r = 30 + Math.random() * 40; this.x = Math.random() * config.width;
+        this.y = config.height + this.r; this.speed = 1.0 + Math.random() * 2;
+        this.color = ['#FF4081', '#40C4FF', '#E040FB', '#FFEB3B', '#76FF03'][Math.floor(Math.random()*5)];
+        this.offset = Math.random()*100; this.dead = false;
+    }
+    update() { this.y -= this.speed; this.x += Math.sin(this.y * 0.01 + this.offset) * 0.5; if (this.y < -100) this.dead = true; }
+    draw(ctx) {
+        ctx.fillStyle = this.color; ctx.beginPath(); ctx.ellipse(this.x, this.y, this.r*0.9, this.r, 0, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.beginPath(); ctx.ellipse(this.x - this.r*0.3, this.y - this.r*0.3, this.r*0.2, this.r*0.1, -0.5, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+let audioCtx, analyser, dataArray, sourceNode;
+const audioPlayer = document.getElementById('bgm-player');
+
+function initAudio() {
+    if(!audioCtx) {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC(); analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256; analyser.smoothingTimeConstant = 0.8;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+    }
+    audioPlayer.src = "1.mp3";
+    audioPlayer.play().then(() => { if (!sourceNode) { sourceNode = audioCtx.createMediaElementSource(audioPlayer); sourceNode.connect(analyser); analyser.connect(audioCtx.destination); } });
+}
+
+function loop() {
+    let bassEnergy = 0;
+    if (analyser && !audioPlayer.paused) { analyser.getByteFrequencyData(dataArray); bassEnergy = dataArray[5] / 255; }
+    ctx.fillStyle = '#FAFAFA'; ctx.fillRect(0, 0, config.width, config.height);
+    for (let i = shapes.length - 1; i >= 0; i--) {
+        const s = shapes[i];
+        if (s instanceof CartoonSpeaker) s.update(bassEnergy); else s.update();
+        s.draw(ctx);
+        if (s instanceof Balloon && s.dead) shapes.splice(i, 1);
+    }
+    if (shapes.length < 15 && Math.random() > 0.96) shapes.push(new Balloon());
+    requestAnimationFrame(loop);
+}
+
+function startExperiment() {
+    document.getElementById('aut-ui').style.display = 'block';
+    document.getElementById('aut-input').focus();
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+        if (timeLeft <= 0) finishAndUpload();
+    }, 1000);
+}
+
+document.getElementById('aut-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && e.target.value.trim() !== "") {
+        answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
+        e.target.value = "";
+        document.getElementById('ans-count').innerText = answers.length;
+        const currentCount = answers.filter(a => a.item === items[currentItemIdx]).length;
+        if (currentCount >= 5 && currentItemIdx < items.length - 1) {
+            currentItemIdx++;
+            document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
+        }
+    }
+});
+
+async function finishAndUpload() {
+    clearInterval(timer);
+    const ui = document.getElementById('aut-ui');
+    ui.innerHTML = "<h3>正在上传数据...</h3>";
+    try {
+        const { error } = await _supabase
+            .from('experiment_results_A')
+            .insert([{ mode_name: "欢乐派对", responses: JSON.stringify(answers) }]);
+        if (error) throw error;
+        ui.innerHTML = "<h3 style='color:green;'>上传成功！</h3>";
+    } catch (err) {
+        ui.innerHTML = "<h3 style='color:red;'>上传失败：" + err.message + "</h3>";
+    }
+}
+
+document.getElementById('end-early').onclick = () => { if(confirm("确定要结束实验并保存吗？")) finishAndUpload(); };
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    document.getElementById('setup-overlay').style.display = 'none';
+    initAudio(); shapes = [new CartoonSpeaker()]; loop(); startExperiment();
+});
+</script>
+</body>
+</html>
