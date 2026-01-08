@@ -238,30 +238,34 @@ startBtn.addEventListener('click', async () => {
     startBtn.disabled = true;
 
     try {
-        // --- 自动化注册逻辑 ---
-        // 我们只传 group_tag，完全不提 id
-        // 数据库会因为开启了 Is Identity 而自动生成 id
+        // --- 修正后的插入逻辑 ---
+        // 显式指定 created_at 为当前时间，防止数据库报错 23502
         const { data, error } = await _supabase
             .from('Participants')
-            .insert([{ group_tag: 'B' }])
+            .insert([
+                {
+                    group_tag: 'B',
+                    created_at: new Date().toISOString() // 显式传时间，解决 23502 错误
+                }
+            ])
             .select();
 
         if (error) throw error;
 
-        // 获取数据库刚刚自动生成的 ID
-        window.currentParticipantId = data[0].id;
-        console.log("分配成功，当前被试 ID:", window.currentParticipantId);
+        if (data && data.length > 0) {
+            window.currentParticipantId = data[0].id;
+            console.log("分配成功，当前被试 ID:", window.currentParticipantId);
 
-        // --- 进入实验 ---
-        document.getElementById('setup-overlay').style.display = 'none';
-        document.getElementById('aut-ui').style.display = 'block';
-        initAudio();
-        shapes = [new CartoonSpeaker()];
-        loop();
-        startItemSession();
-
+            document.getElementById('setup-overlay').style.display = 'none';
+            document.getElementById('aut-ui').style.display = 'block';
+            initAudio();
+            shapes = [new CartoonSpeaker()];
+            loop();
+            startItemSession();
+        }
     } catch (err) {
         console.error("注册失败:", err);
+        // 如果报 23502，说明数据库依然拒绝空值
         alert("实验初始化失败: " + err.message);
         startBtn.innerText = "开始实验";
         startBtn.disabled = false;
