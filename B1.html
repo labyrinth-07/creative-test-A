@@ -203,20 +203,18 @@ document.getElementById('aut-input').addEventListener('keypress', (e) => {
 });
 async function finishAndUpload() {
     clearInterval(timer);
-    audioPlayer.pause();
+    if (song) song.stop();
     const ui = document.getElementById('aut-ui');
-    ui.innerHTML = "<h3>正在提交实验数据...</h3>";
+    ui.innerHTML = "<h3>正在提交数据...</h3>";
 
-    // 使用刚才自动生成的 ID
-    const pid = window.currentParticipantId;
-
+    // 映射 B 组数据标准
     const uploadData = {
-        participant_id: pid,
-        is_customized: false,
-        mode_type: "HH",
-        music_genre: "固定-欢乐派对",
-        fluency_score: answers.length,
-        user_answers: JSON.stringify(answers)
+        participant_id: window.currentParticipantId, // 刚才领到的 ID
+        is_customized: false,                        // B 组固定为 false
+        mode_type: "LH",                             // 低愉悦高激活 (Low valence, High arousal)
+        music_genre: "深渊核心-压抑",
+        fluency_score: answers.length,               // 自动计算流畅性
+        user_answers: JSON.stringify(answers)        // 详细答案
     };
 
     try {
@@ -225,53 +223,62 @@ async function finishAndUpload() {
             .insert([uploadData]);
 
         if (error) throw error;
-        ui.innerHTML = `<h3 style='color:green;'>数据上传成功！(ID: ${pid})</h3>`;
+        ui.innerHTML = `<h3 style='color:green;'>上传成功！(ID: ${window.currentParticipantId})</h3>`;
     } catch (err) {
-        ui.innerHTML = `<h3 style='color:red;'>提交失败</h3><p>${err.message}</p>`;
+        ui.innerHTML = `<h3>上传失败：${err.message}</h3>`;
     }
 }
+// 修改 startBtn.onclick 内部逻辑
+document.getElementById('start-btn').onclick = async function() {
+    const btn = this;
+    const msg = document.getElementById('loading-msg');
 
-startBtn.addEventListener('click', async () => {
-    if(!startBtn.classList.contains('ready')) return;
-
-    startBtn.innerText = "正在分配实验 ID...";
-    startBtn.disabled = true;
+    btn.disabled = true;
+    btn.innerText = "正在初始化环境...";
+    msg.style.display = "block";
 
     try {
-        // --- 修正后的插入逻辑 ---
-        // 显式指定 created_at 为当前时间，防止数据库报错 23502
-        const { data, error } = await _supabase
+        // --- 核心修改 1：B 组自动初始化 ---
+        // 向 Participants 插入一条新记录，让数据库自动生成 ID
+        // 注意：不传 created_at，利用数据库的 now() 默认值
+        const { data, error: pError } = await _supabase
             .from('Participants')
-            .insert([
-                {
-                    group_tag: 'B',
-                    created_at: new Date().toISOString() // 显式传时间，解决 23502 错误
-                }
-            ])
+            .insert([{ group_tag: 'B' }])
             .select();
 
-        if (error) throw error;
+        if (pError) throw pError;
 
-        if (data && data.length > 0) {
-            window.currentParticipantId = data[0].id;
-            console.log("分配成功，当前被试 ID:", window.currentParticipantId);
+        // 存储领到的 ID
+        window.currentParticipantId = data[0].id;
+        console.log("分配成功，当前被试 ID:", window.currentParticipantId);
 
-            document.getElementById('setup-overlay').style.display = 'none';
-            document.getElementById('aut-ui').style.display = 'block';
-            initAudio();
-            shapes = [new CartoonSpeaker()];
-            loop();
-            startItemSession();
+        // --- 核心修改 2：音频处理 ---
+        userStartAudio();
+        if (getAudioContext().state !== 'running') {
+            getAudioContext().resume();
         }
-    } catch (err) {
-        console.error("注册失败:", err);
-        // 如果报 23502，说明数据库依然拒绝空值
-        alert("实验初始化失败: " + err.message);
-        startBtn.innerText = "开始实验";
-        startBtn.disabled = false;
-    }
-});
 
+        song = loadSound('2.mp3',
+            () => {
+                msg.style.display = "none";
+                document.getElementById('setup-overlay').style.display = 'none';
+                document.getElementById('aut-ui').style.display = 'block';
+                song.loop();
+                isRunning = true;
+                startItemSession();
+            },
+            () => {
+                alert("音频同步失败，请检查 2.mp3。");
+                btn.disabled = false;
+                btn.innerText = "重试";
+            }
+        );
+    } catch (err) {
+        alert("初始化失败：" + err.message);
+        btn.disabled = false;
+        btn.innerText = "重试";
+    }
+};
 document.getElementById('next-item-btn').onclick = () => { if(confirm("确定要跳到下一个物品吗？")) switchNextItem(); };
 </script>
 </body>
