@@ -208,28 +208,28 @@ async function finishAndUpload() {
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>正在提交实验数据...</h3>";
 
-    // 1. 准备要上传的数据对象
-    // 注意：这里的字段名必须与你 Supabase 表中的字段名完全一致
+    const urlParams = new URLSearchParams(window.location.search);
+    const pid = parseInt(urlParams.get('pid')) || 1;
+
+    // B 组核心数据结构
     const uploadData = {
-        participant_id: 1, // 暂时固定为1，实际建议从 URL 参数或登录信息获取
-        is_customized: true, // 因为当前是“欢乐派对”模式，属于 C 组自选逻辑
-        mode_type: "HH", // 高愉悦高激活对应的代码
-        music_genre: "欢乐爵士", // 对应你音频的风格
-        fluency_score: answers.length, // 自动计算答案总数
-        user_answers: JSON.stringify(answers) // 存储详细答案文本
+        participant_id: pid,
+        is_customized: false, // B 组固定为 false，表示非自定义
+        mode_type: "HH",      // 虽然是欢乐模式，但因为是系统强加的，标记为固定 HH
+        music_genre: "固定-欢乐派对", // 标记为固定资源
+        fluency_score: answers.length,
+        user_answers: JSON.stringify(answers)
     };
 
     try {
-        // 2. 提交到 experiment_results_A 表
         const { error } = await _supabase
             .from('experiment_results_A')
             .insert([uploadData]);
 
         if (error) throw error;
-        ui.innerHTML = "<h3 style='color:green;'>上传成功！实验结束。</h3>";
+        ui.innerHTML = "<h3 style='color:green;'>B组数据上传成功！实验结束。</h3>";
     } catch (err) {
-        console.error("上传失败:", err);
-        ui.innerHTML = `<h3>提交失败: ${err.message}</h3>`;
+        ui.innerHTML = `<h3 style='color:red;'>提交失败</h3><p>${err.message}</p>`;
     }
 }
 
