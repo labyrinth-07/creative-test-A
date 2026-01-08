@@ -234,27 +234,25 @@ async function finishAndUpload() {
 startBtn.addEventListener('click', async () => {
     if(!startBtn.classList.contains('ready')) return;
 
-    startBtn.innerText = "正在初始化被试信息...";
+    startBtn.innerText = "正在分配实验 ID...";
     startBtn.disabled = true;
 
     try {
-        // --- 核心修改：自动在 Participants 表创建一个新用户 ---
-        // 假设当前页面是 B 组固定实验，我们传 group_tag: 'B'
+        // --- 自动化注册逻辑 ---
+        // 我们只传 group_tag，完全不提 id
+        // 数据库会因为开启了 Is Identity 而自动生成 id
         const { data, error } = await _supabase
             .from('Participants')
             .insert([{ group_tag: 'B' }])
-            .select(); // 获取插入后的数据
+            .select();
 
         if (error) throw error;
 
-        // 拿到系统自动生成的 ID (int8)
-        const newPid = data[0].id;
-        console.log("自动生成的被试 ID:", newPid);
+        // 获取数据库刚刚自动生成的 ID
+        window.currentParticipantId = data[0].id;
+        console.log("分配成功，当前被试 ID:", window.currentParticipantId);
 
-        // 将这个 ID 存储到全局变量或 URL 参数中，方便后续提交使用
-        window.currentParticipantId = newPid;
-
-        // --- 进入实验界面 ---
+        // --- 进入实验 ---
         document.getElementById('setup-overlay').style.display = 'none';
         document.getElementById('aut-ui').style.display = 'block';
         initAudio();
@@ -263,8 +261,9 @@ startBtn.addEventListener('click', async () => {
         startItemSession();
 
     } catch (err) {
-        alert("初始化失败，请检查网络或 RLS 权限: " + err.message);
-        startBtn.innerText = "重试";
+        console.error("注册失败:", err);
+        alert("实验初始化失败: " + err.message);
+        startBtn.innerText = "开始实验";
         startBtn.disabled = false;
     }
 });
