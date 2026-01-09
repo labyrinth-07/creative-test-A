@@ -113,20 +113,42 @@ class CartoonSpeaker {
 
 class Balloon {
     constructor() {
-        this.r = 30 + random(40); this.x = random(width);
-        this.y = height + this.r; this.speed = 1.0 + random(2);
-        // 保留你绝对不许改的颜色数组
+        this.r = 30 + random(40);
+        this.x = random(width);
+        this.y = height + this.r;
+        this.speed = 1.0 + random(2);
         this.color = ['#FF4081', '#40C4FF', '#E040FB', '#FFEB3B', '#76FF03'][floor(random(5))];
-        this.offset = random(100); this.dead = false;
+        this.offset = random(100);
+        this.dead = false;
+        // 新增：用于存储缩放增量
+        this.dynamicScale = 0;
     }
-    update() { this.y -= this.speed; this.x += sin(this.y * 0.01 + this.offset) * 0.5; if (this.y < -100) this.dead = true; }
+
+    // --- 修改：接收 energy 参数 ---
+    update(energy) {
+        // 让能量影响缩放值
+        this.dynamicScale = energy * 15;
+
+        this.y -= this.speed;
+        this.x += sin(this.y * 0.01 + this.offset) * 0.5;
+        if (this.y < -100) this.dead = true;
+    }
+
     draw() {
         push();
+        // 气球位置
+        translate(this.x, this.y);
+        // 根据音乐能量产生的 dynamicScale 进行缩放
+        let s = 1 + this.dynamicScale * 0.01;
+        scale(s);
+
         fill(this.color); noStroke();
-        ellipse(this.x, this.y, this.r * 1.8, this.r * 2);
-        // 保留你绝对不许改的高光
+        // 绘制坐标改为 (0,0)，因为上面用了 translate
+        ellipse(0, 0, this.r * 1.8, this.r * 2);
+
         fill(255, 255, 255, 76);
-        ellipse(this.x - this.r * 0.3, this.y - this.r * 0.3, this.r * 0.4, this.r * 0.2);
+        // 高光位置也相对 (0,0) 偏移
+        ellipse(-this.r * 0.3, -this.r * 0.3, this.r * 0.4, this.r * 0.2);
         pop();
     }
 }
@@ -144,15 +166,19 @@ function draw() {
 
     if (shapes.length === 0) shapes.push(new CartoonSpeaker());
 
+    // 修改后的 draw 函数片段
     for (let i = shapes.length - 1; i >= 0; i--) {
         let s = shapes[i];
-        if (s instanceof CartoonSpeaker) s.update(energy);
-        else s.update();
+        if (s instanceof CartoonSpeaker) {
+            s.update(energy);
+        } else if (s instanceof Balloon) {
+            // --- 关键修改：将音乐能量 energy 传给气球 ---
+            s.update(energy);
+        }
         s.draw();
         if (s instanceof Balloon && s.dead) shapes.splice(i, 1);
     }
-    if (shapes.length < 15 && random(1) > 0.96) shapes.push(new Balloon());
-}
+
 
 function startItemSession() {
     timeLeft = 180;
