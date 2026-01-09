@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>对照组测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* 极致纯白简约风格，消除所有干扰 */
+        body {
+            margin: 0; padding: 0;
+            background: #ffffff;
+            font-family: -apple-system, "Helvetica Neue", sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; color: #000;
+        }
+
+        #experiment-container { width: 100%; max-width: 500px; text-align: center; padding: 20px; }
+
+        /* 初始界面 */
+        #setup-overlay { display: block; }
+        .instruction-text { margin-bottom: 30px; line-height: 1.8; color: #666; font-size: 16px; }
+
+        /* 答题界面 */
+        #aut-ui { display: none; }
+        #item-display { font-size: 32px; margin-bottom: 10px; font-weight: bold; }
+        #timer-display { font-size: 20px; color: #ff0000; margin-bottom: 30px; }
+
+        #aut-input {
+            width: 100%; padding: 15px;
+            border: 1px solid #ccc; border-radius: 4px;
+            font-size: 18px; outline: none; box-sizing: border-box;
+        }
+
+        /* 统计信息 */
+        .status-bar {
+            margin-top: 25px; display: flex; justify-content: space-between;
+            font-size: 14px; color: #999;
+        }
+
+        /* 按钮样式 */
+        .btn {
+            background: #000; color: #fff; border: none;
+            padding: 12px 40px; font-size: 16px; cursor: pointer;
+            border-radius: 4px; transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.8; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        #next-item-btn {
+            margin-top: 40px; background: none; color: #999;
+            text-decoration: underline; font-size: 13px; border: none; cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<div id="experiment-container">
+    <div id="setup-overlay">
+        <div class="instruction-text">
+            这是一个纯白环境下的创造力测试。<br>
+            请针对展示的物品，在有限时间内尽可能多地说出它的用途。<br>
+            准备好后请点击下方按钮。
+        </div>
+        <button id="start-btn" class="btn">开始实验</button>
+    </div>
+
+    <div id="aut-ui">
+        <div id="item-display">物品：正在加载...</div>
+        <div id="timer-display">剩余时间: 180s</div>
+
+        <input type="text" id="aut-input" placeholder="输入用途并按回车提交..." autocomplete="off">
+
+        <div class="status-bar">
+            <span id="progress-text">进度：1 / 3</span>
+            <span>当前物品提交数: <span id="ans-count" style="color:#000; font-weight:bold;">0</span></span>
+        </div>
+
+        <button id="next-item-btn">跳到下一个物品</button>
+    </div>
+</div>
+
+<script>
+    // 1. 初始化 Supabase 客户端
+    const _supabase = supabase.createClient(
+        'https://ebqbvpjvwdewgjlxuwrf.supabase.co',
+        'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu'
+    );
+
+    // 2. 实验配置
+    const items = ["回形针", "砖头", "纸箱"];
+    let currentItemIdx = 0;
+    let answers = [];
+    let timeLeft = 180;
+    let timer = null;
+
+    // 3. 开始实验逻辑
+    document.getElementById('start-btn').onclick = async function() {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerText = "正在分配 ID...";
+
+        try {
+            // 向 Participants 表注册并领号
+            const { data, error } = await _supabase
+                .from('Participants')
+                .insert([{ group_tag: 'A' }])
+                .select();
+
+            if (error) throw error;
+
+            // 存储全局 ID 供后续提交使用
+            window.currentParticipantId = data[0].id;
+            console.log("分配成功，ID:", window.currentParticipantId);
+
+            // 切换界面
+            document.getElementById('setup-overlay').style.display = 'none';
+            document.getElementById('aut-ui').style.display = 'block';
+
+            startItemSession();
+
+        } catch (err) {
+            alert("初始化失败，请检查网络: " + err.message);
+            btn.disabled = false;
+            btn.innerText = "开始实验";
+        }
+    };
+
+    // 4. 任务会话管理
+    function startItemSession() {
+        timeLeft = 180;
+        document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
+        document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / ${items.length}`;
+        document.getElementById('ans-count').innerText = "0";
+        document.getElementById('aut-input').value = "";
+        document.getElementById('aut-input').focus();
+
+        if (timer) clearInterval(timer);
+        timer = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+            if (timeLeft <= 0) switchNextItem();
+        }, 1000);
+    }
+
+    // 5. 提交单个答案
+    document.getElementById('aut-input').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && e.target.value.trim() !== "") {
+            answers.push({
+                item: items[currentItemIdx],
+                response: e.target.value.trim()
+            });
+            e.target.value = "";
+
+            // 更新计数
+            const count = answers.filter(a => a.item === items[currentItemIdx]).length;
+            document.getElementById('ans-count').innerText = count;
+        }
+    });
+
+    // 6. 切换物品或结束
+    function switchNextItem() {
+        if (currentItemIdx < items.length - 1) {
+            currentItemIdx++;
+            startItemSession();
+        } else {
+            finishAndUpload();
+        }
+    }
+
+    // 7. 最终上传数据集
+    async function finishAndUpload() {
+        clearInterval(timer);
+        const ui = document.getElementById('aut-ui');
+        ui.innerHTML = "<h3>正在上传测试结果，请勿关闭窗口...</h3>";
+
+        const uploadData = {
+            participant_id: window.currentParticipantId,
+            is_customized: false,
+            mode_type: "NONE", // 标记为无干扰对照组
+            music_genre: "无",
+            fluency_score: answers.length,
+            user_answers: JSON.stringify(answers) // 使用 user_answers 字段
+        };
+
+        try {
+            const { error } = await _supabase
+                .from('experiment_results_A')
+                .insert([uploadData]);
+
+            if (error) throw error;
+            ui.innerHTML = `<h2 style="color:green">测试完成</h2><p>感谢您的参与！(被试 ID: ${window.currentParticipantId})</p>`;
+        } catch (err) {
+            ui.innerHTML = `<h2 style="color:red">上传失败</h2><p>${err.message}</p>`;
+        }
+    }
+
+    document.getElementById('next-item-btn').onclick = () => {
+        if(confirm("确定跳过当前物品进入下一个吗？")) switchNextItem();
+    };
+</script>
+
+</body>
+</html>
