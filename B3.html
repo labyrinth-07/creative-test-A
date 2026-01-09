@@ -55,7 +55,7 @@
 </div>
 
 <div id="aut-ui">
-    <h2 id="item-display" style="margin:0; font-size:28px; font-weight: 200;">物品：毛毯</h2>
+    <h2 id="item-display" style="margin:0; font-size:28px; font-weight: 200;">物品：书签</h2>
     <p id="timer-display" style="color:#aaccff; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
     <input type="text" id="aut-input" placeholder="输入用途并按回车...">
     <div style="margin-top:20px; color:#8899aa; font-size:14px; display:flex; justify-content:space-between;">
@@ -69,7 +69,7 @@
 // Supabase 配置
 const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
 
-const items = ["毛毯", "回形针", "砖头"];
+const items = ["书签", "耳环", "纸巾"];
 let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
 let song, amplitude, rainDrops = [];
 
