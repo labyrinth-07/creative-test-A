@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模式 3: 忧郁雨境</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #050510; font-family: 'Microsoft YaHei', sans-serif; user-select: none; }
+        canvas { display: block; }
+
+        /* 启动界面 */
+        #setup-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 15, 0.95); z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; color: #fff;
+        }
+        h1 { color: #aaccff; letter-spacing: 2px; font-weight: 100; margin-bottom: 20px; text-shadow: 0 0 10px rgba(100,150,255,0.5); }
+        .instruction-text { margin: 15px auto; color: #8899aa; max-width: 600px; line-height: 1.6; font-size: 16px; padding: 20px; }
+
+        #start-btn {
+            padding: 15px 50px; background: #223355; color: #fff; font-weight: bold;
+            border: 1px solid #4466aa; cursor: pointer; font-size: 18px; border-radius: 50px; transition: 0.3s;
+        }
+        #start-btn:hover { background: #334466; box-shadow: 0 0 20px rgba(68, 102, 170, 0.6); transform: scale(1.05); }
+
+        /* 答题面板 - 极致透明风格 */
+        #aut-ui {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 9999; background: transparent !important; width: 450px; text-align: center;
+            color: #ddeeff; pointer-events: auto;
+        }
+        #aut-input {
+            width: 100%; padding: 15px; background: rgba(10, 20, 40, 0.4);
+            border: 1px solid #4466aa; border-radius: 10px; font-size: 18px;
+            color: #fff; outline: none; box-sizing: border-box; margin-top: 20px;
+        }
+        #loading-msg { display: none; color: #aaccff; font-weight: bold; margin-top: 20px; }
+        #next-item-btn { margin-top:25px; background:none; border:none; color:#667788; text-decoration:underline; cursor:pointer; }
+    </style>
+</head>
+<body>
+
+<div id="setup-overlay">
+    <h1>忧郁模式</h1>
+    <div class="instruction-text">
+        本实验依据于 Alternative Uses Task，测试你在忧郁情境下的创造力。<br>
+        请针对展示的物品，在有限时间内尽可能多地说出它的用途，越多越好。
+    </div>
+    <button id="start-btn">开始实验</button>
+    <div id="loading-msg">正在同步环境资源 (音频加载中)...</div>
+</div>
+
+<div id="aut-ui">
+    <h2 id="item-display" style="margin:0; font-size:28px; font-weight: 200;">物品：毛毯</h2>
+    <p id="timer-display" style="color:#aaccff; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
+    <input type="text" id="aut-input" placeholder="输入用途并按回车...">
+    <div style="margin-top:20px; color:#8899aa; font-size:14px; display:flex; justify-content:space-between;">
+        <span id="progress-text">进度：1 / 3</span>
+        <span>已提交: <span id="ans-count" style="color:#aaccff;">0</span></span>
+    </div>
+    <button id="next-item-btn">跳到下一个物品</button>
+</div>
+
+<script>
+// Supabase 配置
+const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
+
+const items = ["毛毯", "回形针", "砖头"];
+let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
+let song, amplitude, rainDrops = [];
+
+function setup() {
+    createCanvas(windowWidth, windowHeight);
+    amplitude = new p5.Amplitude();
+    for(let i=0; i<100; i++) {
+        rainDrops.push(new RainDrop());
+    }
+}
+
+function draw() {
+    if (!isRunning) {
+        background(5, 5, 15);
+        return;
+    }
+
+    let level = amplitude.getLevel();
+    let hue = map(sin(frameCount * 0.005), -1, 1, 200, 260);
+
+    push();
+    colorMode(HSB);
+    background(hue, 50, 10, 0.2); // 保持淡淡的雨境拖尾
+    stroke(hue, 40, 80);
+    strokeWeight(1);
+
+    for(let drop of rainDrops) {
+        drop.update(level);
+        drop.draw();
+    }
+    pop();
+}
+
+class RainDrop {
+    constructor() {
+        this.x = random(width);
+        this.y = random(height);
+        this.speed = random(0.5, 2); // 相比深渊模式，这里的雨滴下落速度更慢（低激活）
+        this.len = random(10, 25);
+    }
+    update(level) {
+        this.y += this.speed + (level * 2);
+        if (this.y > height) {
+            this.y = -20;
+            this.x = random(width);
+        }
+    }
+    draw() { line(this.x, this.y, this.x, this.y + this.len); }
+}
+
+function startItemSession() {
+    timeLeft = 180;
+    document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
+    document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
+    document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+    document.getElementById('ans-count').innerText = "0";
+    setTimeout(() => { document.getElementById('aut-input').focus(); }, 100);
+
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+        if (timeLeft <= 0) switchNextItem();
+    }, 1000);
+}
+
+function switchNextItem() {
+    if (currentItemIdx < items.length - 1) {
+        currentItemIdx++;
+        startItemSession();
+    } else {
+        finishAndUpload();
+    }
+}
+
+document.getElementById('aut-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && e.target.value.trim() !== "") {
+        answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
+        e.target.value = "";
+        let currentItemAnswers = answers.filter(a => a.item === items[currentItemIdx]).length;
+        document.getElementById('ans-count').innerText = currentItemAnswers;
+    }
+});
+
+async function finishAndUpload() {
+    clearInterval(timer);
+    if (song) song.stop();
+    const ui = document.getElementById('aut-ui');
+    ui.innerHTML = "<h3>正在提交实验数据...</h3>";
+
+    // 映射 B 组数据标准
+    const uploadData = {
+        participant_id: window.currentParticipantId,
+        is_customized: false,
+        mode_type: "LL",                             // 低愉悦低激活 (Low valence, Low arousal)
+        music_genre: "忧郁雨声-缓和",
+        fluency_score: answers.length,
+        user_answers: JSON.stringify(answers)
+    };
+
+    try {
+        const { error } = await _supabase
+            .from('experiment_results_A')
+            .insert([uploadData]);
+
+        if (error) throw error;
+        ui.innerHTML = `<h3 style='color:#aaccff;'>上传成功！实验结束。<br>ID: ${window.currentParticipantId}</h3>`;
+    } catch (err) {
+        ui.innerHTML = `<h3>上传失败：${err.message}</h3>`;
+    }
+}
+
+// 初始化按钮逻辑
+document.getElementById('start-btn').onclick = async function() {
+    const btn = this;
+    const msg = document.getElementById('loading-msg');
+
+    btn.disabled = true;
+    btn.innerText = "环境同步中...";
+    msg.style.display = "block";
+
+    try {
+        // --- B 组自动初始化 ---
+        const { data, error: pError } = await _supabase
+            .from('Participants')
+            .insert([{ group_tag: 'B' }])
+            .select();
+
+        if (pError) throw pError;
+        window.currentParticipantId = data[0].id;
+
+        // --- 音频处理 ---
+        userStartAudio();
+
+        // 此处加载忧郁模式音频 3.mp3
+        song = loadSound('3.mp3',
+            () => {
+                msg.style.display = "none";
+                document.getElementById('setup-overlay').style.display = 'none';
+                document.getElementById('aut-ui').style.display = 'block';
+                song.loop();
+                song.setVolume(0.5); // 忧郁模式通常音量较低
+                isRunning = true;
+                startItemSession();
+            },
+            () => {
+                alert("音频加载失败，请确保目录下存在 3.mp3");
+                btn.disabled = false;
+                btn.innerText = "重试";
+            }
+        );
+    } catch (err) {
+        alert("初始化失败：" + err.message);
+        btn.disabled = false;
+        btn.innerText = "重试";
+    }
+};
+
+document.getElementById('next-item-btn').onclick = () => { if(confirm("确定要跳到下一个物品吗？")) switchNextItem(); };
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>
