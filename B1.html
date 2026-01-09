@@ -84,7 +84,7 @@ function setup() {
 }
 
 // ==========================================
-// 2. 视觉类 (完全保留原始气球颜色与高光逻辑)
+// 2. 视觉类 (完全保留原始风格，气球增加音乐联动)
 // ==========================================
 class CartoonSpeaker {
     constructor() { this.w = 150; this.h = 180; this.bounce = 0; }
@@ -120,34 +120,21 @@ class Balloon {
         this.color = ['#FF4081', '#40C4FF', '#E040FB', '#FFEB3B', '#76FF03'][floor(random(5))];
         this.offset = random(100);
         this.dead = false;
-        // 新增：用于存储缩放增量
         this.dynamicScale = 0;
     }
-
-    // --- 修改：接收 energy 参数 ---
     update(energy) {
-        // 让能量影响缩放值
-        this.dynamicScale = energy * 15;
-
+        this.dynamicScale = energy * 15; // 随音乐缩放
         this.y -= this.speed;
         this.x += sin(this.y * 0.01 + this.offset) * 0.5;
         if (this.y < -100) this.dead = true;
     }
-
     draw() {
         push();
-        // 气球位置
         translate(this.x, this.y);
-        // 根据音乐能量产生的 dynamicScale 进行缩放
-        let s = 1 + this.dynamicScale * 0.01;
-        scale(s);
-
+        scale(1 + this.dynamicScale * 0.01);
         fill(this.color); noStroke();
-        // 绘制坐标改为 (0,0)，因为上面用了 translate
         ellipse(0, 0, this.r * 1.8, this.r * 2);
-
-        fill(255, 255, 255, 76);
-        // 高光位置也相对 (0,0) 偏移
+        fill(255, 255, 255, 76); // 高光保持原样
         ellipse(-this.r * 0.3, -this.r * 0.3, this.r * 0.4, this.r * 0.2);
         pop();
     }
@@ -166,19 +153,22 @@ function draw() {
 
     if (shapes.length === 0) shapes.push(new CartoonSpeaker());
 
-    // 修改后的 draw 函数片段
     for (let i = shapes.length - 1; i >= 0; i--) {
         let s = shapes[i];
         if (s instanceof CartoonSpeaker) {
             s.update(energy);
         } else if (s instanceof Balloon) {
-            // --- 关键修改：将音乐能量 energy 传给气球 ---
-            s.update(energy);
+            s.update(energy); // 关键：更新气球音乐动力
         }
         s.draw();
         if (s instanceof Balloon && s.dead) shapes.splice(i, 1);
     }
 
+    // 自动补全随机生成逻辑
+    if (shapes.length < 15 && random(1) > 0.96) {
+        shapes.push(new Balloon());
+    }
+} // 闭合 draw 函数
 
 function startItemSession() {
     timeLeft = 180;
@@ -186,7 +176,10 @@ function startItemSession() {
     document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
     document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
     document.getElementById('ans-count').innerText = "0";
-    setTimeout(() => document.getElementById('aut-input').focus(), 100);
+    setTimeout(() => {
+        const input = document.getElementById('aut-input');
+        if (input) input.focus();
+    }, 200);
 
     if(timer) clearInterval(timer);
     timer = setInterval(() => {
@@ -209,8 +202,8 @@ document.getElementById('aut-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.value.trim() !== "") {
         answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
         e.target.value = "";
-        let currentAnswers = answers.filter(a => a.item === items[currentItemIdx]).length;
-        document.getElementById('ans-count').innerText = currentAnswers;
+        let count = answers.filter(a => a.item === items[currentItemIdx]).length;
+        document.getElementById('ans-count').innerText = count;
     }
 });
 
@@ -218,12 +211,12 @@ async function finishAndUpload() {
     clearInterval(timer);
     if (song) song.stop();
     const ui = document.getElementById('aut-ui');
-    ui.innerHTML = "<h3>正在提交实验数据...</h3>";
+    ui.innerHTML = "<h3>正在提交数据...</h3>";
 
     const uploadData = {
         participant_id: window.currentParticipantId,
         is_customized: false,
-        mode_type: "HH", // 欢乐模式：高愉悦高激活
+        mode_type: "HH",
         music_genre: "欢乐派对-活泼",
         fluency_score: answers.length,
         user_answers: JSON.stringify(answers)
@@ -238,7 +231,6 @@ async function finishAndUpload() {
     }
 }
 
-// 点击逻辑：自动领号 + 音频上下文激活 (逻辑对齐 B2)
 document.getElementById('start-btn').onclick = async function() {
     const btn = this;
     const msg = document.getElementById('loading-msg');
@@ -259,7 +251,6 @@ document.getElementById('start-btn').onclick = async function() {
             isRunning = true;
             startItemSession();
         }, () => {
-            alert("音频加载失败，请检查 1.mp3");
             alert("音频加载失败，请检查 1.mp3");
             btn.disabled = false;
         });
