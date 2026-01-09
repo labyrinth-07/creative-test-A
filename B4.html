@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>模式 4: 马卡龙云境</title>
+    <title>模式 4: 云境</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -25,9 +25,9 @@
 <body>
 
 <div id="setup-overlay">
-    <h1>恬静模式</h1>
+    <h1>恬静流动模式</h1>
     <div class="instruction-text">
-        本实验依据于 Alternative Uses Task，测试你在恬静情境下的创造力。<br>
+        本实验依据于 Alternative Uses Task，测试你在恬静流动情境下的创造力。<br>
         选择一件常用物品，在有限时间内尽可能多地说出它的用途，越多越好。
     </div>
     <button id="start-btn">开始实验</button>
@@ -48,9 +48,15 @@
 <div id="canvas-container"></div>
 
 <script type="x-shader/x-vertex" id="vertexShader">
-    uniform float uTime; uniform float uAudio; uniform float uPixelRatio;
-    attribute float aSize; attribute float aRandom;
-    varying vec3 vColor; varying float vAlpha;
+    uniform float uTime;
+    uniform float uAudio;
+    uniform float uPixelRatio;
+    attribute float aSize;
+    attribute float aRandom;
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    // --- Noise Functions 完全保留 ---
     vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
     vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
     vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
@@ -81,19 +87,38 @@
         float n2 = snoise(p + vec3(0, 0, eps)) - snoise(p - vec3(0, 0, eps));
         return normalize(vec3(n1 - n2, snoise(p + vec3(0, 0, eps)) - snoise(p + vec3(eps, 0, 0)), snoise(p + vec3(eps, 0, 0)) - snoise(p + vec3(0, eps, 0))));
     }
+
     void main() {
-        vec3 pos = position; float time = uTime * 0.12;
-        vec3 curlField = curl(pos * 0.04 + time); float density = snoise(pos * 0.02 + time * 0.5);
-        float expandRange = 28.0 + (uAudio * 35.0); vec3 newPos = pos + curlField * (expandRange * (0.5 + density));
-        vec3 cMint = vec3(0.1, 0.9, 0.7); vec3 cPink = vec3(1.0, 0.55, 0.65);
+        vec3 pos = position;
+
+        // --- 核心改动：不再直接用 uTime，而是让 uTime 作为一个流动基数 ---
+        // 现在的逻辑是：基础速度 + (音量加成速度)
+        float flowTime = uTime * (0.12 + uAudio * 0.4);
+
+        vec3 curlField = curl(pos * 0.04 + flowTime);
+        float density = snoise(pos * 0.02 + flowTime * 0.5);
+
+        // --- 核心改动：固定扩散范围，不再放大缩小 ---
+        // 把扩散范围固定在 35.0 左右，营造一个稳定的“云团”，但内部在飞速流动
+        float stableRange = 35.0;
+        vec3 newPos = pos + curlField * (stableRange * (0.5 + density));
+
+        // 颜色混合依然保留萨蒂风格
+        vec3 cMint = vec3(0.1, 0.9, 0.7);
+        vec3 cPink = vec3(1.0, 0.55, 0.65);
         float mixFactor = smoothstep(-0.4, 0.4, snoise(newPos * 0.03 + uTime * 0.2));
-        vColor = mix(cMint, cPink, mixFactor) + vec3(uAudio * 0.15);
+
+        vColor = mix(cMint, cPink, mixFactor);
+        // 音乐越大颜色越亮，保持灵动感
+        vColor += vec3(uAudio * 0.12);
+
         vAlpha = 0.45 + density * 0.25;
         vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
         gl_Position = projectionMatrix * mvPosition;
         gl_PointSize = (aSize * uPixelRatio) * (110.0 / -mvPosition.z);
     }
 </script>
+
 <script type="x-shader/x-fragment" id="fragmentShader">
     varying vec3 vColor; varying float vAlpha;
     void main() {
@@ -110,7 +135,7 @@ const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.c
 const items = ["饮料", "帽子", "抹布"];
 let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
 
-// --- Three.js 初始化：参数完全保留原样 ---
+// --- Three.js 初始化完全保留原样 ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
@@ -180,50 +205,34 @@ async function finishAndUpload() {
     if (audioSound) audioSound.stop();
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>正在提交数据...</h3>";
-
-    // 修复：字段名修正为 user_answers
     const uploadData = {
-        participant_id: window.currentParticipantId, // 使用自动领到的 ID
+        participant_id: window.currentParticipantId,
         is_customized: false,
         mode_type: "HL",
         music_genre: "古典-萨蒂-恬静",
         fluency_score: answers.length,
         user_answers: JSON.stringify(answers)
     };
-
     try {
         const { error } = await _supabase.from('experiment_results_A').insert([uploadData]);
         if (error) throw error;
         ui.innerHTML = `<h3 style='color:green;'>上传成功！(ID: ${window.currentParticipantId})</h3>`;
-    } catch (err) {
-        ui.innerHTML = `<h3>上传失败：${err.message}</h3>`;
-    }
+    } catch (err) { ui.innerHTML = `<h3>上传失败：${err.message}</h3>`; }
 }
 
-// 修正初始化逻辑：自动领号 + 加载本地 4.mp3
 document.getElementById('start-btn').onclick = async function() {
     const btn = this;
     const msg = document.getElementById('loading-msg');
     btn.disabled = true; btn.innerText = "正在初始化...";
     msg.style.display = "block";
-
     try {
-        // 1. 自动注册获取 ID
-        const { data, error: pError } = await _supabase
-            .from('Participants')
-            .insert([{ group_tag: 'B' }])
-            .select();
-
+        const { data, error: pError } = await _supabase.from('Participants').insert([{ group_tag: 'B' }]).select();
         if (pError) throw pError;
         window.currentParticipantId = data[0].id;
-
-        // 2. 音频处理
         const listener = new THREE.AudioListener();
         camera.add(listener);
         audioSound = new THREE.Audio(listener);
         const loader = new THREE.AudioLoader();
-
-        // 加载本地 4.mp3 避免 404 错误
         loader.load('4.mp3', (buffer) => {
             msg.style.display = "none";
             document.getElementById('setup-overlay').style.display = 'none';
@@ -236,14 +245,8 @@ document.getElementById('start-btn').onclick = async function() {
             isRunning = true;
             startItemSession();
             animate();
-        }, undefined, (err) => {
-            alert("音频 4.mp3 加载失败，请确保文件在 GitHub 根目录。");
-            btn.disabled = false; btn.innerText = "重试";
         });
-    } catch (err) {
-        alert("数据库连接失败：" + err.message);
-        btn.disabled = false;
-    }
+    } catch (err) { alert("初始化失败：" + err.message); btn.disabled = false; }
 };
 
 function animate() {
@@ -251,6 +254,7 @@ function animate() {
     const time = clock.getElapsedTime();
     material.uniforms.uTime.value = time;
     if (analyser && isRunning) {
+        // 依然获取音量，用于着色器内部的流动加权
         material.uniforms.uAudio.value = analyser.getAverageFrequency() / 255.0;
     }
     nebula.rotation.y += 0.001;
@@ -262,7 +266,6 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
 document.getElementById('next-item-btn').onclick = () => { if(confirm("确定跳过？")) switchNextItem(); };
 </script>
 </body>
