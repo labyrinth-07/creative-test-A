@@ -13,7 +13,7 @@
         /* 启动界面 */
         #setup-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.9); z-index: 100;
+            background: rgba(255, 255, 255, 0.95); z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             text-align: center; color: #333;
         }
@@ -30,7 +30,8 @@
         /* 答题面板 - 透明明亮风格 */
         #aut-ui {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 9999; width: 450px; text-align: center; color: #333; pointer-events: auto;
+            z-index: 9999; background: transparent !important; width: 450px; text-align: center;
+            color: #333; pointer-events: auto;
         }
         #aut-input {
             width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.7);
@@ -48,16 +49,16 @@
     <h1>恬静模式</h1>
     <div class="instruction-text">
         本实验依据于 Alternative Uses Task，测试你在恬静情境下的创造力。<br>
-        请针对展示的物品，在有限时间内尽可能多地说出它的用途，越多越好。
+        选择一件常用物品，在有限时间内尽可能多地说出它的用途，越多越好。
     </div>
     <button id="start-btn">开始实验</button>
-    <div id="loading-msg">正在同步环境资源 (音频同步中)...</div>
+    <div id="loading-msg">正在唤醒梦幻核心 (音频加载中)...</div>
 </div>
 
 <div id="aut-ui">
     <h2 id="item-display" style="margin:0; font-size:28px;">物品：饮料</h2>
     <p id="timer-display">剩余时间: 180s</p>
-    <input type="text" id="aut-input" placeholder="输入用途并按回车...">
+    <input type="text" id="aut-input" placeholder="输入用途并按回车提交...">
     <div style="margin-top:20px; color:#999; font-size:14px; display:flex; justify-content:space-between;">
         <span id="progress-text">进度：1 / 3</span>
         <span>已提交: <span id="ans-count" style="color:#ff80ab;">0</span></span>
@@ -125,10 +126,9 @@
 </script>
 
 <script>
-// Supabase & 实验逻辑
 const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
 const items = ["饮料", "帽子", "抹布"];
-let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isPlaying = false;
+let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
 
 // Three.js 设置
 const scene = new THREE.Scene();
@@ -164,39 +164,7 @@ const material = new THREE.ShaderMaterial({
 const nebula = new THREE.Points(geometry, material);
 scene.add(nebula);
 
-// 音频与计时
 let analyser, audioSound, clock = new THREE.Clock();
-
-async function startExperiment() {
-    const btn = document.getElementById('start-btn');
-    btn.disabled = true; btn.innerText = "正在初始化...";
-
-    try {
-        // 自动领号
-        const { data, error } = await _supabase.from('Participants').insert([{ group_tag: 'B' }]).select();
-        if (error) throw error;
-        window.currentParticipantId = data[0].id;
-
-        // 音频设置
-        const listener = new THREE.AudioListener();
-        camera.add(listener);
-        audioSound = new THREE.Audio(listener);
-        const loader = new THREE.AudioLoader();
-
-        // 使用 Gymnopedie No 1 (符合 HL 情绪)
-        loader.load('https://upload.wikimedia.org/wikipedia/commons/3/35/Gymnopedie_No_1.ogg', (buffer) => {
-            audioSound.setBuffer(buffer); audioSound.setLoop(true); audioSound.setVolume(0.5);
-            audioSound.play();
-            analyser = new THREE.AudioAnalyser(audioSound, 32);
-
-            document.getElementById('setup-overlay').style.display = 'none';
-            document.getElementById('aut-ui').style.display = 'block';
-            isPlaying = true;
-            startItemSession();
-            animate();
-        });
-    } catch (e) { alert("初始化失败: " + e.message); btn.disabled = false; }
-}
 
 function startItemSession() {
     timeLeft = 180;
@@ -227,40 +195,96 @@ document.getElementById('aut-input').addEventListener('keypress', (e) => {
 });
 
 async function finishAndUpload() {
-    clearInterval(timer); if(audioSound) audioSound.stop();
+    clearInterval(timer);
+    if (audioSound) audioSound.stop();
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>正在提交数据...</h3>";
+
+    // 映射 B 组数据标准
     const uploadData = {
         participant_id: window.currentParticipantId,
         is_customized: false,
-        mode_type: "HL",
+        mode_type: "HL", // 高愉悦低激活 (High valence, Low arousal)
         music_genre: "古典-萨蒂-恬静",
         fluency_score: answers.length,
         user_answers: JSON.stringify(answers)
     };
+
     try {
         const { error } = await _supabase.from('experiment_results_A').insert([uploadData]);
         if (error) throw error;
-        ui.innerHTML = `<h3 style='color:green;'>上传成功！实验结束。(ID: ${window.currentParticipantId})</h3>`;
-    } catch (e) { ui.innerHTML = `<h3>上传失败: ${e.message}</h3>`; }
+        ui.innerHTML = `<h3 style='color:green;'>上传成功！(ID: ${window.currentParticipantId})</h3>`;
+    } catch (err) {
+        ui.innerHTML = `<h3>上传失败：${err.message}</h3>`;
+    }
 }
+
+// 模拟 B2 的初始化逻辑
+document.getElementById('start-btn').onclick = async function() {
+    const btn = this;
+    const msg = document.getElementById('loading-msg');
+
+    btn.disabled = true;
+    btn.innerText = "正在初始化环境...";
+    msg.style.display = "block";
+
+    try {
+        // --- 核心修改 1：B 组自动发号 ---
+        const { data, error: pError } = await _supabase
+            .from('Participants')
+            .insert([{ group_tag: 'B' }])
+            .select();
+
+        if (pError) throw pError;
+        window.currentParticipantId = data[0].id;
+
+        // --- 核心修改 2：音频处理 ---
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+        audioSound = new THREE.Audio(listener);
+        const loader = new THREE.AudioLoader();
+
+        // 统一使用 load 机制
+        loader.load('https://upload.wikimedia.org/wikipedia/commons/3/35/Gymnopedie_No_1.ogg', (buffer) => {
+            msg.style.display = "none";
+            document.getElementById('setup-overlay').style.display = 'none';
+            document.getElementById('aut-ui').style.display = 'block';
+
+            audioSound.setBuffer(buffer);
+            audioSound.setLoop(true);
+            audioSound.setVolume(0.5);
+            audioSound.play();
+
+            analyser = new THREE.AudioAnalyser(audioSound, 32);
+            isRunning = true;
+            startItemSession();
+            animate();
+        });
+    } catch (err) {
+        alert("初始化失败：" + err.message);
+        btn.disabled = false;
+        btn.innerText = "重试";
+    }
+};
 
 function animate() {
     requestAnimationFrame(animate);
     const time = clock.getElapsedTime();
     material.uniforms.uTime.value = time;
-    if (analyser) material.uniforms.uAudio.value = analyser.getAverageFrequency() / 255.0;
+    if (analyser && isRunning) {
+        material.uniforms.uAudio.value = analyser.getAverageFrequency() / 255.0;
+    }
     nebula.rotation.y += 0.001;
     renderer.render(scene, camera);
 }
 
-document.getElementById('start-btn').onclick = startExperiment;
-document.getElementById('next-item-btn').onclick = () => { if(confirm("跳过当前物品？")) switchNextItem(); };
 window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+document.getElementById('next-item-btn').onclick = () => { if(confirm("确定跳过？")) switchNextItem(); };
 </script>
 </body>
-</html>
 </html>
