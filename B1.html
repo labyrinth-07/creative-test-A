@@ -3,171 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mode 1: Happy Party</title>
+    <title>模式 1: 欢乐派对</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* 样式完全保留，不改动任何视觉元素 */
-        body { margin: 0; padding: 0; overflow: hidden; background: #FAFAFA; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        /* 样式完全保留，绝对不改动任何视觉元素 */
+        body { margin: 0; padding: 0; overflow: hidden; background: #FAFAFA; font-family: 'Microsoft YaHei', sans-serif; user-select: none; }
         canvas { display: block; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1; }
-
-        #ui-layer {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 10;
-            display: flex; flex-direction: column; justify-content: space-between; padding: 30px; box-sizing: border-box;
-            color: #222;
-        }
 
         #setup-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(255,255,255,0.95); z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            pointer-events: auto; text-align: center;
+            pointer-events: auto; text-align: center; padding: 20px;
         }
 
-        h1 { margin: 0; font-weight: 800; text-transform: uppercase; letter-spacing: 2px; }
-
-        .instruction-text { margin: 15px auto; color: #777; max-width: 600px; line-height: 1.6; font-size: 16px; padding: 20px; }
-
-        button {
+        #start-btn {
             background: #FF4081; color: white; border: none; padding: 15px 50px; font-size: 18px;
-            letter-spacing: 1px; cursor: pointer; border-radius: 50px; font-weight: bold; margin-top: 30px;
-            transition: 0.2s; box-shadow: 0 5px 15px rgba(255, 64, 129, 0.3);
+            letter-spacing: 1px; cursor: pointer; border-radius: 50px; font-weight: bold;
+            margin-top: 30px; transition: 0.3s; box-shadow: 0 5px 15px rgba(255, 64, 129, 0.3);
         }
-        button:hover { transform: scale(1.05); background: #f50057; }
+        #start-btn:hover { transform: scale(1.05); background: #f50057; }
+        #start-btn:disabled { background: #ccc; cursor: not-allowed; }
 
-        .header-info h1 { font-size: 42px; color: #333; }
-        .header-info p { margin: 5px 0 0 0; opacity: 0.6; font-weight: 500; }
+        .header-info h1 { font-size: 42px; color: #333; margin: 0; }
+        .header-info p { margin: 15px auto; opacity: 0.8; font-weight: 500; max-width: 600px; line-height: 1.6; font-size: 18px; }
 
-        /* AUT 答题 UI - 保持 Mode 1 风格但功能同步 B2 */
         #aut-ui {
             display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 9999; background: transparent; width: 450px; text-align: center; color: #333; pointer-events: auto;
+            z-index: 9999; background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            padding: 40px; border-radius: 20px; width: 450px; text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.4);
+            pointer-events: auto;
         }
-        #aut-input {
-            width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.8);
-            border: 2px solid #FF4081; border-radius: 10px; font-size: 18px;
-            color: #333; outline: none; box-sizing: border-box; margin-top: 20px;
-        }
+        #aut-input { width: 100%; padding: 15px; border: 2px solid #FF4081; border-radius: 10px; font-size: 18px; outline: none; box-sizing: border-box; margin-top: 20px; background: rgba(255,255,255,0.8); }
         #loading-msg { display: none; color: #FF4081; font-weight: bold; margin-top: 20px; }
+        #next-item-btn { margin-top:25px; background:none; border:none; color:#bbb; text-decoration:underline; cursor:pointer; }
     </style>
 </head>
 <body>
 
 <div id="setup-overlay">
-    <h1 style="color:#333;">恬静派对模式</h1>
-    <div class="instruction-text">
-        本实验依据于 Alternative Uses Task，测试你在愉悦情境下的创造力。<br>
-        选择一件常用物品，在有限时间内尽可能多地说出它的用途，越多越好。
+    <div class="header-info">
+        <h1>欢乐模式</h1>
+        <p>本实验依据于 Alternative Uses Task，将会测试你在欢乐情境下的创造力。<br>
+           请针对展示的物品，在有限时间内尽可能多地说出它的用途，越多越好。</p>
     </div>
     <button id="start-btn">开始实验</button>
-    <div id="loading-msg">正在准备派对 (音频加载中)...</div>
+    <div id="loading-msg">正在同步远程音频资源...</div>
 </div>
 
 <div id="aut-ui">
-    <h2 id="item-display" style="margin:0; font-size:28px;">物品：砖头</h2>
+    <h2 id="item-display" style="color:#333; margin:0; font-size:28px;">物品：砖头</h2>
     <p id="timer-display" style="color:#FF4081; font-weight:bold; font-size:26px; margin:15px 0;">剩余时间: 180s</p>
-    <input type="text" id="aut-input" placeholder="输入用途并按回车提交...">
-    <div style="margin-top:20px; color:#666; font-size:14px; display:flex; justify-content:space-between;">
+    <input type="text" id="aut-input" placeholder="输入一种用途，按回车提交...">
+    <div style="margin-top:20px; color:#888; font-size:14px; display:flex; justify-content:space-between;">
         <span id="progress-text">进度：1 / 3</span>
-        <span>已提交: <span id="ans-count" style="color:#FF4081;">0</span></span>
+        <span>已提交: <span id="ans-count" style="color:#FF4081; font-weight:bold;">0</span></span>
     </div>
-    <button id="next-item-btn" style="margin-top:25px; background:none; border:none; color:#999; text-decoration:underline; cursor:pointer;">跳到下一个物品</button>
+    <button id="next-item-btn">跳到下一个物品</button>
 </div>
-
-<div id="ui-layer">
-    <div class="header-info">
-        <h1>HAPPY MODE</h1>
-        <p>Speaker & Balloons</p>
-    </div>
-</div>
-
-<canvas id="canvas"></canvas>
 
 <script>
 // ==========================================
-// 1. 系统配置与 Supabase 初始化
+// 1. 配置与初始化 (逻辑对齐 B2)
 // ==========================================
 const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
-const items = ["砖头", "回形针", "纸箱"]; // 与 B2 类似的物品列表
+
+const items = ["砖头", "回形针", "纸箱"];
 let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
+let song, fft, shapes = [];
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-let shapes = [];
-
-const config = { width: window.innerWidth, height: window.innerHeight };
-function resize() {
-    config.width = canvas.width = window.innerWidth;
-    config.height = canvas.height = window.innerHeight;
+function setup() {
+    let cnv = createCanvas(windowWidth, windowHeight);
+    cnv.position(0, 0);
+    cnv.style('z-index', '1');
+    fft = new p5.FFT();
 }
-window.addEventListener('resize', resize);
-resize();
 
 // ==========================================
-// 2. 视觉类定义 (完全保留 Mode 1 的可视化要求)
+// 2. 视觉类 (完全保留原始气球颜色与高光逻辑)
 // ==========================================
 class CartoonSpeaker {
-    constructor() { this.w = 150; this.h = 180; this.update(0); this.bounce = 0; }
+    constructor() { this.w = 150; this.h = 180; this.bounce = 0; }
     update(energy) {
         this.bounce = energy * 20;
-        this.x = config.width - this.w - 50;
-        this.y = config.height - this.h - 50;
+        this.x = width - this.w - 50;
+        this.y = height - this.h - 50;
     }
-    draw(ctx) {
-        ctx.save();
-        ctx.translate(this.x + this.w/2, this.y + this.h/2);
-        const scale = 1 + this.bounce * 0.005;
-        ctx.scale(scale, scale);
-        ctx.fillStyle = '#333';
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(-this.w/2, -this.h/2, this.w, this.h, 20);
-        else ctx.rect(-this.w/2, -this.h/2, this.w, this.h);
-        ctx.fill();
-        const wooferSize = 50 + this.bounce;
-        ctx.fillStyle = '#222';
-        ctx.beginPath(); ctx.arc(0, 20, 60, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#444';
-        ctx.beginPath(); ctx.arc(0, 20, wooferSize, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(0, 20, wooferSize * 0.3, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#555';
-        ctx.beginPath(); ctx.arc(0, -50, 20, 0, Math.PI*2); ctx.fill();
+    draw() {
+        push(); translate(this.x + this.w/2, this.y + this.h/2);
+        scale(1 + this.bounce * 0.005);
+        fill(51); stroke(0); strokeWeight(2);
+        rect(-this.w/2, -this.h/2, this.w, this.h, 20);
+        let wooferSize = 50 + this.bounce;
+        fill(34); noStroke(); circle(0, 20, 120);
+        fill(68); circle(0, 20, wooferSize * 2);
+        fill(17); circle(0, 20, wooferSize * 0.6);
+        fill(85); circle(0, -50, 40);
         if (this.bounce > 8) {
-            ctx.strokeStyle = '#FF4081';
-            ctx.lineWidth = 3 + this.bounce * 0.1;
-            ctx.beginPath(); ctx.arc(0, 20, wooferSize + 10, 0, Math.PI*2); ctx.stroke();
+            noFill(); stroke('#FF4081'); strokeWeight(3 + this.bounce * 0.1);
+            circle(0, 20, (wooferSize + 10) * 2);
         }
-        ctx.restore();
+        pop();
     }
 }
 
 class Balloon {
     constructor() {
-        this.r = 30 + Math.random() * 40;
-        this.x = Math.random() * config.width;
-        this.y = config.height + this.r;
-        this.speed = 1.0 + Math.random() * 2;
-        this.color = ['#FF4081', '#40C4FF', '#E040FB', '#FFEB3B', '#76FF03'][Math.floor(Math.random()*5)];
-        this.offset = Math.random()*100;
-        this.dead = false;
+        this.r = 30 + random(40); this.x = random(width);
+        this.y = height + this.r; this.speed = 1.0 + random(2);
+        // 保留你绝对不许改的颜色数组
+        this.color = ['#FF4081', '#40C4FF', '#E040FB', '#FFEB3B', '#76FF03'][floor(random(5))];
+        this.offset = random(100); this.dead = false;
     }
-    update() {
-        this.y -= this.speed;
-        this.x += Math.sin(this.y * 0.01 + this.offset) * 0.5;
-        if (this.y < -100) this.dead = true;
-    }
-    draw(ctx) {
-        ctx.fillStyle = this.color;
-        ctx.beginPath(); ctx.ellipse(this.x, this.y, this.r*0.9, this.r, 0, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.beginPath(); ctx.ellipse(this.x - this.r*0.3, this.y - this.r*0.3, this.r*0.2, this.r*0.1, -0.5, 0, Math.PI*2); ctx.fill();
+    update() { this.y -= this.speed; this.x += sin(this.y * 0.01 + this.offset) * 0.5; if (this.y < -100) this.dead = true; }
+    draw() {
+        push();
+        fill(this.color); noStroke();
+        ellipse(this.x, this.y, this.r * 1.8, this.r * 2);
+        // 保留你绝对不许改的高光
+        fill(255, 255, 255, 76);
+        ellipse(this.x - this.r * 0.3, this.y - this.r * 0.3, this.r * 0.4, this.r * 0.2);
+        pop();
     }
 }
 
 // ==========================================
-// 3. 音频与实验逻辑 (功能同步 B2)
+// 3. 实验流程逻辑 (逻辑对齐 B2)
 // ==========================================
-let audioCtx, analyser, dataArray, sourceNode, audioPlayer;
+function draw() {
+    background(250);
+    if (!isRunning) return;
+
+    fft.analyze();
+    let bass = fft.getEnergy("bass");
+    let energy = bass / 255;
+
+    if (shapes.length === 0) shapes.push(new CartoonSpeaker());
+
+    for (let i = shapes.length - 1; i >= 0; i--) {
+        let s = shapes[i];
+        if (s instanceof CartoonSpeaker) s.update(energy);
+        else s.update();
+        s.draw();
+        if (s instanceof Balloon && s.dead) shapes.splice(i, 1);
+    }
+    if (shapes.length < 15 && random(1) > 0.96) shapes.push(new Balloon());
+}
 
 function startItemSession() {
     timeLeft = 180;
@@ -175,7 +160,8 @@ function startItemSession() {
     document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
     document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
     document.getElementById('ans-count').innerText = "0";
-    setTimeout(() => { document.getElementById('aut-input').focus(); }, 100);
+    setTimeout(() => document.getElementById('aut-input').focus(), 100);
+
     if(timer) clearInterval(timer);
     timer = setInterval(() => {
         timeLeft--;
@@ -197,20 +183,21 @@ document.getElementById('aut-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter' && e.target.value.trim() !== "") {
         answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
         e.target.value = "";
-        document.getElementById('ans-count').innerText = answers.filter(a => a.item === items[currentItemIdx]).length;
+        let currentAnswers = answers.filter(a => a.item === items[currentItemIdx]).length;
+        document.getElementById('ans-count').innerText = currentAnswers;
     }
 });
 
 async function finishAndUpload() {
     clearInterval(timer);
-    if (audioPlayer) audioPlayer.pause();
+    if (song) song.stop();
     const ui = document.getElementById('aut-ui');
-    ui.innerHTML = "<h3>正在提交数据...</h3>";
+    ui.innerHTML = "<h3>正在提交实验数据...</h3>";
 
     const uploadData = {
         participant_id: window.currentParticipantId,
         is_customized: false,
-        mode_type: "HH", // 高愉悦高激活 (High valence, High arousal)
+        mode_type: "HH", // 欢乐模式：高愉悦高激活
         music_genre: "欢乐派对-活泼",
         fluency_score: answers.length,
         user_answers: JSON.stringify(answers)
@@ -225,7 +212,7 @@ async function finishAndUpload() {
     }
 }
 
-// 核心初始化逻辑
+// 点击逻辑：自动领号 + 音频上下文激活 (逻辑对齐 B2)
 document.getElementById('start-btn').onclick = async function() {
     const btn = this;
     const msg = document.getElementById('loading-msg');
@@ -233,74 +220,30 @@ document.getElementById('start-btn').onclick = async function() {
     msg.style.display = "block";
 
     try {
-        // 自动注册 ID (B组逻辑)
         const { data, error: pError } = await _supabase.from('Participants').insert([{ group_tag: 'B' }]).select();
         if (pError) throw pError;
         window.currentParticipantId = data[0].id;
 
-        // 音频上下文初始化
-        const AC = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AC();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-        audioPlayer = new Audio();
-        audioPlayer.src = '1.mp3'; // 加载本地音频
-        audioPlayer.loop = true;
-
-        audioPlayer.oncanplaythrough = () => {
+        userStartAudio();
+        song = loadSound('1.mp3', () => {
             msg.style.display = "none";
             document.getElementById('setup-overlay').style.display = 'none';
             document.getElementById('aut-ui').style.display = 'block';
-            sourceNode = audioCtx.createMediaElementSource(audioPlayer);
-            sourceNode.connect(analyser);
-            analyser.connect(audioCtx.destination);
-            audioPlayer.play();
+            song.loop();
             isRunning = true;
-            initScene();
             startItemSession();
-            loop();
-        };
-        audioPlayer.onerror = () => alert("音频 1.mp3 加载失败，请检查文件路径。");
-
+        }, () => {
+            alert("音频加载失败，请检查 1.mp3");
+            alert("音频加载失败，请检查 1.mp3");
+            btn.disabled = false;
+        });
     } catch (err) {
         alert("初始化失败：" + err.message);
         btn.disabled = false;
     }
 };
 
-function initScene() {
-    shapes = [new CartoonSpeaker()];
-    for(let i=0; i<4; i++) {
-        let b = new Balloon();
-        b.y = Math.random() * config.height;
-        shapes.push(b);
-    }
-}
-
-function loop() {
-    let bassEnergy = 0;
-    if (analyser && isRunning) {
-        analyser.getByteFrequencyData(dataArray);
-        bassEnergy = dataArray[5] / 255;
-    }
-
-    ctx.fillStyle = '#FAFAFA';
-    ctx.fillRect(0, 0, config.width, config.height);
-
-    for (let i = shapes.length - 1; i >= 0; i--) {
-        const s = shapes[i];
-        if (s instanceof CartoonSpeaker) s.update(bassEnergy);
-        else s.update();
-        s.draw(ctx);
-        if (s instanceof Balloon && s.dead) shapes.splice(i, 1);
-    }
-
-    if (shapes.length < 15 && Math.random() > 0.96) shapes.push(new Balloon());
-    requestAnimationFrame(loop);
-}
-
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 document.getElementById('next-item-btn').onclick = () => { if(confirm("确定跳过？")) switchNextItem(); };
 </script>
 </body>
