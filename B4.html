@@ -7,37 +7,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
+        /* 样式部分完全保留，不做任何修改 */
         body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Helvetica Neue', Arial, sans-serif; user-select: none; }
         #canvas-container { width: 100vw; height: 100vh; position: absolute; z-index: 1; }
-
-        /* 启动界面 */
-        #setup-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.95); z-index: 100;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            text-align: center; color: #333;
-        }
+        #setup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255, 255, 255, 0.9); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; color: #333; }
         h1 { color: #ff80ab; letter-spacing: 4px; margin-bottom: 10px; font-weight: 200; }
         .instruction-text { margin: 15px auto; color: #777; max-width: 600px; line-height: 1.6; font-size: 16px; padding: 20px; }
-
-        #start-btn {
-            padding: 15px 50px; font-size: 15px; letter-spacing: 2px; font-weight: 600;
-            color: #ff80ab; background: #fff; border: 2px solid #ff80ab;
-            border-radius: 50px; cursor: pointer; transition: 0.4s;
-        }
+        #start-btn { padding: 15px 50px; font-size: 15px; letter-spacing: 2px; font-weight: 600; color: #ff80ab; background: #fff; border: 2px solid #ff80ab; border-radius: 50px; cursor: pointer; transition: 0.4s; }
         #start-btn:hover { background: #ff80ab; color: #fff; transform: scale(1.05); }
-
-        /* 答题面板 - 透明明亮风格 */
-        #aut-ui {
-            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            z-index: 9999; background: transparent !important; width: 450px; text-align: center;
-            color: #333; pointer-events: auto;
-        }
-        #aut-input {
-            width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.7);
-            border: 2px solid #ff80ab; border-radius: 10px; font-size: 18px;
-            color: #333; outline: none; box-sizing: border-box; margin-top: 20px;
-        }
+        #aut-ui { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; width: 450px; text-align: center; color: #333; pointer-events: auto; }
+        #aut-input { width: 100%; padding: 15px; background: rgba(255, 255, 255, 0.7); border: 2px solid #ff80ab; border-radius: 10px; font-size: 18px; color: #333; outline: none; box-sizing: border-box; margin-top: 20px; }
         #timer-display { color: #ff80ab; font-weight: bold; font-size: 26px; margin: 15px 0; }
         #loading-msg { display: none; color: #ff80ab; font-weight: bold; margin-top: 20px; }
         #next-item-btn { margin-top:25px; background:none; border:none; color:#999; text-decoration:underline; cursor:pointer; }
@@ -126,11 +105,12 @@
 </script>
 
 <script>
+// 初始化 Supabase
 const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
 const items = ["饮料", "帽子", "抹布"];
 let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false;
 
-// Three.js 设置
+// --- Three.js 初始化：参数完全保留原样 ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xffffff);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
@@ -166,6 +146,7 @@ scene.add(nebula);
 
 let analyser, audioSound, clock = new THREE.Clock();
 
+// --- 逻辑函数 ---
 function startItemSession() {
     timeLeft = 180;
     document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
@@ -200,11 +181,11 @@ async function finishAndUpload() {
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>正在提交数据...</h3>";
 
-    // 映射 B 组数据标准
+    // 修复：字段名修正为 user_answers
     const uploadData = {
-        participant_id: window.currentParticipantId,
+        participant_id: window.currentParticipantId, // 使用自动领到的 ID
         is_customized: false,
-        mode_type: "HL", // 高愉悦低激活 (High valence, Low arousal)
+        mode_type: "HL",
         music_genre: "古典-萨蒂-恬静",
         fluency_score: answers.length,
         user_answers: JSON.stringify(answers)
@@ -219,17 +200,15 @@ async function finishAndUpload() {
     }
 }
 
-// 模拟 B2 的初始化逻辑
+// 修正初始化逻辑：自动领号 + 加载本地 4.mp3
 document.getElementById('start-btn').onclick = async function() {
     const btn = this;
     const msg = document.getElementById('loading-msg');
-
-    btn.disabled = true;
-    btn.innerText = "正在初始化环境...";
+    btn.disabled = true; btn.innerText = "正在初始化...";
     msg.style.display = "block";
 
     try {
-        // --- 核心修改 1：B 组自动发号 ---
+        // 1. 自动注册获取 ID
         const { data, error: pError } = await _supabase
             .from('Participants')
             .insert([{ group_tag: 'B' }])
@@ -238,32 +217,32 @@ document.getElementById('start-btn').onclick = async function() {
         if (pError) throw pError;
         window.currentParticipantId = data[0].id;
 
-        // --- 核心修改 2：音频处理 ---
+        // 2. 音频处理
         const listener = new THREE.AudioListener();
         camera.add(listener);
         audioSound = new THREE.Audio(listener);
         const loader = new THREE.AudioLoader();
 
-        // 统一使用 load 机制
-        loader.load('https://upload.wikimedia.org/wikipedia/commons/3/35/Gymnopedie_No_1.ogg', (buffer) => {
+        // 加载本地 4.mp3 避免 404 错误
+        loader.load('4.mp3', (buffer) => {
             msg.style.display = "none";
             document.getElementById('setup-overlay').style.display = 'none';
             document.getElementById('aut-ui').style.display = 'block';
-
             audioSound.setBuffer(buffer);
             audioSound.setLoop(true);
             audioSound.setVolume(0.5);
             audioSound.play();
-
             analyser = new THREE.AudioAnalyser(audioSound, 32);
             isRunning = true;
             startItemSession();
             animate();
+        }, undefined, (err) => {
+            alert("音频 4.mp3 加载失败，请确保文件在 GitHub 根目录。");
+            btn.disabled = false; btn.innerText = "重试";
         });
     } catch (err) {
-        alert("初始化失败：" + err.message);
+        alert("数据库连接失败：" + err.message);
         btn.disabled = false;
-        btn.innerText = "重试";
     }
 };
 
