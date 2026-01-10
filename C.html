@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创造力个性化实验中心</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+        }
+        body {
+            margin: 0; padding: 0; background: var(--bg-color);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .header { margin-top: 60px; text-align: center; }
+        .header h1 { font-weight: 300; letter-spacing: 5px; color: var(--text-main); margin-bottom: 10px; }
+        .header p { color: #888; font-size: 16px; }
+
+        .grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px; max-width: 1100px; width: 90%; padding: 40px 0;
+        }
+
+        /* 卡片设计 */
+        .mode-card {
+            background: var(--card-bg); border-radius: 24px; overflow: hidden; cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+            display: flex; flex-direction: column;
+        }
+        .mode-card:hover {
+            transform: translateY(-12px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+        }
+
+        /* 预览图区域 */
+        .preview-box { height: 180px; display: flex; align-items: center; justify-content: center; font-size: 40px; }
+        .hh { background: linear-gradient(135deg, #FF4081, #FFEB3B); } /* 欢乐：高唤醒高愉悦 */
+        .lh { background: linear-gradient(135deg, #200, #800); }       /* 深渊：高唤醒低愉悦 */
+        .ll { background: linear-gradient(135deg, #050510, #4466aa); } /* 雨境：低唤醒低愉悦 */
+        .hl { background: linear-gradient(135deg, #845ef7, #22b8cf); } /* 云境：低唤醒高愉悦 */
+
+        .info { padding: 25px; text-align: left; }
+        .info h3 { margin: 0; font-size: 20px; color: var(--text-main); }
+        .info p { color: #888; font-size: 14px; margin: 10px 0 0 0; line-height: 1.5; }
+
+        .tag {
+            display: inline-block; padding: 4px 12px; border-radius: 50px;
+            font-size: 11px; font-weight: bold; margin-bottom: 12px; text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>实验情境中心</h1>
+    <p>请选择一个环境进入，并定制您的专属创作空间</p>
+</div>
+
+<div class="grid">
+    <div class="mode-card" onclick="location.href='C1.html'">
+        <div class="preview-box hh">🎈</div>
+        <div class="info">
+            <span class="tag" style="background:#fff0f6; color:#ff4081;">高激发 · 正向</span>
+            <h3>欢乐气球</h3>
+            <p>通过明亮的色彩与轻快的节奏激发发散性思维。</p>
+        </div>
+    </div>
+
+    <div class="mode-card" onclick="location.href='C2.html'">
+        <div class="preview-box lh">⚡</div>
+        <div class="info">
+            <span class="tag" style="background:#fff5f5; color:#c92a2a;">高激发 · 负向</span>
+            <h3>深渊核心</h3>
+            <p>在充满压迫感的暗调环境下挑战极限创造力。</p>
+        </div>
+    </div>
+
+    <div class="mode-card" onclick="location.href='C3.html'">
+        <div class="preview-box ll">🌧️</div>
+        <div class="info">
+            <span class="tag" style="background:#e7f5ff; color:#1c7ed6;">低激发 · 负向</span>
+            <h3>忧郁雨境</h3>
+            <p>沉浸于阴郁的雨声中，探索深度思考的可能。</p>
+        </div>
+    </div>
+
+    <div class="mode-card" onclick="location.href='C4.html'">
+        <div class="preview-box hl">☁️</div>
+        <div class="info">
+            <span class="tag" style="background:#f3f0ff; color:#7048e8;">低激发 · 正向</span>
+            <h3>恬静云境</h3>
+            <p>丝滑交织的色彩组合，带您进入心流创作状态。</p>
+        </div>
+    </div>
+</div>
+
+<div style="margin-top: 20px; color: #bbb; font-size: 12px; padding-bottom: 40px;">
+    实验参与者须知：每个环境均支持本地音频上传与视觉色彩调节。
+</div>
+
+</body>
+</html>

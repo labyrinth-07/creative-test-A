@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实验 C4: 云境原版粒子联动</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Helvetica Neue', Arial, sans-serif; user-select: none; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; z-index: 1; }
+
+        /* 左侧配置面板 */
+        #setup-overlay {
+            position: fixed; top: 20px; left: 20px; width: 340px;
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);
+            z-index: 100; border-radius: 20px; padding: 25px; color: #333;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); border: 1px solid rgba(255, 255, 255, 0.5);
+            transition: 0.4s ease;
+        }
+
+        .config-section { text-align: left; margin-bottom: 25px; }
+        .config-section h2 { font-size: 18px; margin: 0 0 10px 0; color: #ff80ab; letter-spacing: 1px; }
+
+        .palette-group { display: flex; flex-direction: column; gap: 10px; }
+        .combo-option {
+            display: flex; align-items: center; gap: 15px; padding: 10px;
+            border: 2px solid transparent; border-radius: 12px; cursor: pointer; transition: 0.2s;
+            background: rgba(255,255,255,0.5);
+        }
+        .combo-option.active { border-color: #ff80ab; background: #fff; transform: scale(1.02); }
+        .color-preview { display: flex; gap: 5px; }
+        .swatch { width: 30px; height: 30px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.05); }
+
+        #start-btn {
+            width: 100%; background: #fff; color: #ff80ab; border: 2px solid #ff80ab; padding: 12px;
+            font-size: 16px; cursor: pointer; border-radius: 50px; font-weight: bold; transition: 0.3s;
+        }
+        #start-btn:hover { background: #ff80ab; color: #fff; }
+
+        #aut-ui { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 9999; width: 450px; text-align: center; color: #333; pointer-events: auto; }
+        #aut-input {
+            width: 100%; padding: 18px; border: 2px solid #ff80ab; border-radius: 15px;
+            font-size: 20px; outline: none; margin-top: 20px; background: rgba(255, 255, 255, 0.7);
+        }
+
+        .hidden { opacity: 0; pointer-events: none; transform: translateX(-50px); }
+    </style>
+</head>
+<body>
+
+<div id="setup-overlay">
+    <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+        <p style="font-size: 13px; color: #777; line-height: 1.6; margin: 0;">欢迎。你可以通过上传音乐和选择和谐的<b>“双色粒子组”</b>来定制你的恬静云境。请在调整满意后，点击下方按钮开始正式的创造力测试。请尽可能多的写出题目中物品的功能</p>
+    </div>
+
+    <div class="config-section">
+        <h2>1. 上传本地音频</h2>
+        <input type="file" id="audio-file" accept="audio/*" style="font-size:12px;">
+    </div>
+
+<div class="palette-group" id="combo-container">
+    <div class="combo-option active" data-c1="#845ef7" data-c2="#22b8cf">
+        <div class="color-preview">
+            <div class="swatch" style="background:#845ef7"></div>
+            <div class="swatch" style="background:#22b8cf"></div>
+        </div>
+        <span>丁香海盐</span>
+    </div>
+
+    <div class="combo-option" data-c1="#ff8787" data-c2="#63e6be">
+        <div class="color-preview">
+            <div class="swatch" style="background:#ff8787"></div>
+            <div class="swatch" style="background:#63e6be"></div>
+        </div>
+        <span>蜜桃青提</span>
+    </div>
+
+    <div class="combo-option" data-c1="#fcc419" data-c2="#9775fa">
+        <div class="color-preview">
+            <div class="swatch" style="background:#fcc419"></div>
+            <div class="swatch" style="background:#9775fa"></div>
+        </div>
+        <span>晨曦薰衣草</span>
+    </div>
+
+    <div class="combo-option" data-c1="#51cf66" data-c2="#339af0">
+        <div class="color-preview">
+            <div class="swatch" style="background:#51cf66"></div>
+            <div class="swatch" style="background:#339af0"></div>
+        </div>
+        <span>森林薄荷</span>
+    </div>
+</div>
+    <button id="start-btn">锁定环境并答题</button>
+</div>
+
+<div id="aut-ui">
+    <h2 id="item-display" style="font-size:32px; font-weight: 200;">物品：泡沫板</h2>
+    <p id="timer-display" style="font-weight:bold; font-size:28px; margin:15px 0; color: #ff80ab;">180s</p>
+    <input type="text" id="aut-input" placeholder="输入用途并按回车提交...">
+    <div style="margin-top:20px; color:#999; font-size:14px; display:flex; justify-content:space-between;">
+        <span id="progress-text">进度：1 / 3</span>
+        <span>已提交: <span id="ans-count" style="color:#ff80ab; font-weight:bold;">0</span></span>
+    </div>
+    <button id="next-item-btn" style="margin-top:25px; background:none; border:none; color:#999; text-decoration:underline; cursor:pointer;">跳到下一个物品</button>
+</div>
+
+<div id="canvas-container"></div>
+
+<script type="x-shader/x-vertex" id="vertexShader">
+    uniform float uTime;
+    uniform float uAudio;
+    uniform float uPixelRatio;
+    uniform vec3 uColor1;
+    uniform vec3 uColor2;
+    attribute float aSize;
+    varying vec3 vColor;
+    varying float vAlpha;
+
+    vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+    vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+    vec4 taylorInvSqrt(vec4 x) { return 1.79284291400159 - 0.85373472095314 * x; }
+    float snoise(vec3 v) {
+        const vec2 C = vec2(1.0/6.0, 1.0/3.0); const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+        vec3 i = floor(v + dot(v, C.yyy)); vec3 x0 = v - i + dot(i, C.xxx);
+        vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g;
+        vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
+        vec3 x1 = x0 - i1 + C.xxx; vec3 x2 = x0 - i2 + C.yyy; vec3 x3 = x0 - D.yyy;
+        i = mod289(i);
+        vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0))+i.y + vec4(0.0, i1.y, i2.y, 1.0))+i.x + vec4(0.0, i1.x, i2.x, 1.0));
+        float n_ = 0.142857142857; vec3 ns = n_ * D.wyz - D.xzx;
+        vec4 j = p - 49.0 * floor(p * ns.z * ns.z); vec4 x_ = floor(j * ns.z); vec4 y_ = floor(j - 7.0 * x_);
+        vec4 x = x_ *ns.x + ns.yyyy; vec4 y = y_ *ns.x + ns.yyyy;
+        vec4 h = 1.0 - abs(x) - abs(y); vec4 b0 = vec4(x.xy, y.xy); vec4 b1 = vec4(x.zw, y.zw);
+        vec4 s0 = floor(b0)*2.0 + 1.0; vec4 s1 = floor(b1)*2.0 + 1.0; vec4 sh = -step(h, vec4(0.0));
+        vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy; vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+        vec3 p0 = vec3(a0.xy,h.x); vec3 p1 = vec3(a0.zw,h.y); vec3 p2 = vec3(a1.xy,h.z); vec3 p3 = vec3(a1.zw,h.w);
+        vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+        p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
+        vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+        m = m * m; return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
+    }
+    vec3 curl(vec3 p) {
+        float eps = 0.1;
+        float n1 = snoise(p + vec3(0, eps, 0)) - snoise(p - vec3(0, eps, 0));
+        float n2 = snoise(p + vec3(0, 0, eps)) - snoise(p - vec3(0, 0, eps));
+        return normalize(vec3(n1 - n2, snoise(p + vec3(0, 0, eps)) - snoise(p + vec3(eps, 0, 0)), snoise(p + vec3(eps, 0, 0)) - snoise(p + vec3(0, eps, 0))));
+    }
+
+    void main() {
+        vec3 pos = position;
+        float flowTime = uTime;
+        vec3 curlField = curl(pos * 0.04 + flowTime);
+        float density = snoise(pos * 0.02 + flowTime * 0.5);
+        float stableRange = 38.0;
+        vec3 newPos = pos + curlField * (stableRange * (0.5 + density));
+
+        float mixFactor = smoothstep(-0.4, 0.4, snoise(newPos * 0.03 + uTime * 0.1));
+        vColor = mix(uColor1, uColor2, mixFactor);
+        vColor += vec3(uAudio * 0.08);
+
+        vAlpha = 0.4 + density * 0.3;
+        vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
+        gl_Position = projectionMatrix * mvPosition;
+        // 完全保留原版的点大小缩放公式
+        gl_PointSize = (aSize * uPixelRatio) * (115.0 / -mvPosition.z);
+    }
+</script>
+
+<script type="x-shader/x-fragment" id="fragmentShader">
+    varying vec3 vColor; varying float vAlpha;
+    void main() {
+        vec2 center = gl_PointCoord - vec2(0.5); float dist = length(center);
+        if (dist > 0.5) discard;
+        float glow = pow(1.0 - (dist * 2.0), 2.2);
+        gl_FragColor = vec4(vColor, vAlpha * glow);
+    }
+</script>
+
+<script>
+const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
+const items = ["泡沫板", "蜡笔", "透明胶"];
+let currentItemIdx = 0, answers = [], timeLeft = 180, timer, isRunning = false, uploadedFileName = "未上传";
+let smoothedTime = 0, lastFrameTime = performance.now();
+let analyser, audioSound;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xffffff);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+camera.position.z = 130;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+const geometry = new THREE.BufferGeometry();
+// --- 完全还原原版粒子参数 ---
+const particleCount = 100000;
+const positions = new Float32Array(particleCount * 3);
+const sizes = new Float32Array(particleCount);
+for (let i = 0; i < particleCount; i++) {
+    // 还原原版分布公式
+    const r = 32 * Math.pow(Math.random(), 1.0/3.0);
+    const theta = Math.random() * 2 * Math.PI, phi = Math.acos(2 * Math.random() - 1);
+    positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+    positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i*3+2] = r * Math.cos(phi);
+    // 还原原版尺寸概率
+    sizes[i] = Math.random() < 0.9 ? 1.8 : 4.2;
+}
+geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+
+const material = new THREE.ShaderMaterial({
+    vertexShader: document.getElementById('vertexShader').textContent,
+    fragmentShader: document.getElementById('fragmentShader').textContent,
+    uniforms: {
+        uTime: { value: 0 },
+        uAudio: { value: 0 },
+        uPixelRatio: { value: renderer.getPixelRatio() },
+        uColor1: { value: new THREE.Color(0x1adbb3) }, // 初始薄荷
+        uColor2: { value: new THREE.Color(0xff8ca6) }  // 初始樱粉
+    },
+    transparent: true, depthWrite: false, blending: THREE.NormalBlending
+});
+const nebula = new THREE.Points(geometry, material);
+scene.add(nebula);
+
+// --- 颜色切换逻辑 ---
+document.querySelectorAll('.combo-option').forEach(opt => {
+    opt.onclick = () => {
+        document.querySelectorAll('.combo-option').forEach(el => el.classList.remove('active'));
+        opt.classList.add('active');
+        const c1 = opt.getAttribute('data-c1');
+        const c2 = opt.getAttribute('data-c2');
+        material.uniforms.uColor1.value.set(c1);
+        material.uniforms.uColor2.value.set(c2);
+        document.getElementById('timer-display').style.color = c2;
+        document.getElementById('aut-input').style.borderColor = c2;
+    };
+});
+
+// --- 音频处理 ---
+document.getElementById('audio-file').onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    uploadedFileName = file.name;
+    if (audioSound && audioSound.isPlaying) audioSound.stop();
+    const listener = new THREE.AudioListener();
+    camera.add(listener);
+    audioSound = new THREE.Audio(listener);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+        const loader = new THREE.AudioLoader();
+        loader.load(ev.target.result, (buffer) => {
+            audioSound.setBuffer(buffer);
+            audioSound.setLoop(true);
+            audioSound.setVolume(0.5);
+            audioSound.play();
+            analyser = new THREE.AudioAnalyser(audioSound, 32);
+        });
+    };
+    reader.readAsDataURL(file);
+};
+
+// 立即启动渲染循环，确保预览可见
+animate();
+
+document.getElementById('start-btn').onclick = async function() {
+    if (uploadedFileName === "未上传") return alert("请先上传音频以驱动云境！");
+    const btn = this; btn.disabled = true;
+    try {
+        const { data } = await _supabase.from('Participants').insert([{ group_tag: 'C4' }]).select();
+        window.currentParticipantId = data[0].id;
+        const setupPanel = document.getElementById('setup-overlay');
+        setupPanel.classList.add('hidden');
+        setTimeout(() => { setupPanel.style.display = 'none'; }, 400);
+        document.getElementById('aut-ui').style.display = 'block';
+        isRunning = true;
+        startItemSession();
+    } catch (err) { alert("初始化失败"); btn.disabled = false; }
+};
+
+function startItemSession() {
+    timeLeft = 180;
+    document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
+    document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+    setTimeout(() => document.getElementById('aut-input').focus(), 100);
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+        if (timeLeft <= 0) switchNextItem();
+    }, 1000);
+}
+
+function switchNextItem() {
+    if (currentItemIdx < items.length - 1) { currentItemIdx++; startItemSession(); }
+    else { finishAndUpload(); }
+}
+
+document.getElementById('aut-input').onkeypress = (e) => {
+    if (e.key === 'Enter' && e.target.value.trim() !== "") {
+        answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
+        e.target.value = "";
+        document.getElementById('ans-count').innerText = answers.filter(a => a.item === items[currentItemIdx]).length;
+    }
+};
+
+async function finishAndUpload() {
+    clearInterval(timer); if (audioSound) audioSound.stop();
+    const ui = document.getElementById('aut-ui');
+    ui.innerHTML = "<h3>数据提交中...</h3>";
+    const activeCombo = document.querySelector('.combo-option.active span').innerText;
+    await _supabase.from('experiment_results_A').insert([{
+        participant_id: window.currentParticipantId,
+        is_customized: true,
+        mode_type: "HL-C",
+        music_genre: "歌名: " + uploadedFileName + " | 色组: " + activeCombo,
+        fluency_score: answers.length,
+        user_answers: JSON.stringify(answers)
+    }]);
+    ui.innerHTML = `<h3 style='color:#ff80ab;'>上传成功！实验结束。</h3>`;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const now = performance.now();
+    const deltaTime = (now - lastFrameTime) / 1000;
+    lastFrameTime = now;
+
+    if (isRunning && analyser) {
+        const freq = analyser.getAverageFrequency() / 255.0;
+        smoothedTime += deltaTime * (0.1 + freq * 0.4);
+        material.uniforms.uTime.value = smoothedTime;
+        material.uniforms.uAudio.value = freq;
+    } else {
+        smoothedTime += deltaTime * 0.05;
+        material.uniforms.uTime.value = smoothedTime;
+    }
+    // 还原原版旋转速度
+    nebula.rotation.y += 0.0008;
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+document.getElementById('next-item-btn').onclick = () => { if(confirm("跳过当前物品？")) switchNextItem(); };
+</script>
+</body>
+</html>

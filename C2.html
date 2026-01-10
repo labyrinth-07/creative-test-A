@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>深渊</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; background: #020000; font-family: 'Microsoft YaHei', sans-serif; }
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: 1 !important; image-rendering: pixelated; }
+
+        /* 左侧悬浮配置面板 */
+        #setup-overlay {
+            position: fixed; top: 20px; left: 20px; width: 340px;
+            background: rgba(10, 0, 0, 0.85); backdrop-filter: blur(10px);
+            z-index: 100; border-radius: 20px; padding: 25px; color: #fff;
+            box-shadow: 0 10px 30px rgba(255, 0, 0, 0.2); border: 1px solid rgba(255, 0, 0, 0.3);
+            transition: 0.4s ease;
+        }
+
+        .config-section { text-align: left; margin-bottom: 25px; }
+        .config-section h2 { font-size: 18px; margin: 0 0 10px 0; color: #ff4444; letter-spacing: 2px; }
+
+        .palette { display: flex; gap: 12px; }
+        .color-dot { width: 45px; height: 45px; border-radius: 12px; cursor: pointer; border: 3px solid #333; transition: 0.2s; }
+        .color-dot.active { border-color: #fff; transform: scale(1.1); box-shadow: 0 0 15px currentColor; }
+
+        #start-btn {
+            width: 100%; background: #880000; color: white; border: 1px solid #ff0000; padding: 12px;
+            font-size: 16px; cursor: pointer; border-radius: 10px; font-weight: bold; transition: 0.3s;
+        }
+
+        #aut-ui {
+            display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 99; width: 450px; text-align: center; color: #fff;
+            background: transparent !important; pointer-events: auto;
+        }
+
+        #aut-input {
+            width: 100%; padding: 18px; border: 2px solid #880000; border-radius: 15px;
+            font-size: 20px; outline: none; margin-top: 20px; background: rgba(0, 0, 0, 0.6);
+            color: #fff; transition: all 0.3s ease;
+        }
+
+        .hidden { opacity: 0; pointer-events: none; transform: translateX(-50px); }
+    </style>
+</head>
+<body>
+
+<div id="setup-overlay">
+    <div class="config-section">
+
+    <div style="text-align: left; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 15px;">
+        <p style="font-size: 13px; color: #eee; line-height: 1.6; margin: 0;">
+            欢迎参加本次实验。在此环节中，你可以通过上传音乐和调节颜色来构建你心目中的<strong>“深渊情境”</strong>。请在调整满意后，点击下方按钮开始正式的创造力测试。请尽可能多的写出题目中物品的功能
+        </p>
+    </div>
+        <h2>1. 唤醒深渊音频</h2>
+        <input type="file" id="audio-file" accept="audio/*" style="font-size:12px; color: #ccc;">
+    </div>
+
+    <div class="config-section">
+        <h2>2. 调节核心色调 (单选)</h2>
+        <div class="palette">
+            <div class="color-dot active" style="background: #FF0000;" data-color="#FF0000"></div>
+            <div class="color-dot" style="background: #7D00FF;" data-color="#7D00FF"></div>
+            <div class="color-dot" style="background: #004DFF;" data-color="#004DFF"></div>
+            <div class="color-dot" style="background: #00FFAD;" data-color="#00FFAD"></div>
+        </div>
+    </div>
+
+    <button id="start-btn">锁定环境并答题</button>
+</div>
+
+<div id="aut-ui">
+    <h2 id="item-display" style="font-size:32px; text-shadow: 0 0 10px #f00;">物品：吸管</h2>
+    <p id="timer-display" style="font-weight:bold; font-size:28px; margin:15px 0; color: #ff0000;">180s</p>
+    <input type="text" id="aut-input" placeholder="输入用途后回车提交...">
+    <div style="margin-top:20px; color:#aaa; font-size:14px; display:flex; justify-content:space-between;">
+        <span id="progress-text">进度：1 / 3</span>
+        <span>已提交: <span id="ans-count" style="color:#ff0000; font-weight:bold;">0</span></span>
+    </div>
+    <button id="next-item-btn" style="margin-top:25px; background:none; border:none; color:#888; text-decoration:underline; cursor:pointer;">跳到下一个物品</button>
+</div>
+
+<script>
+const _supabase = supabase.createClient('https://ebqbvpjvwdewgjlxuwrf.supabase.co', 'sb_publishable_VWUOQouThmiW18KA_bIahw_nG_Dfubu');
+
+let items = ["吸管", "布袋", "矿泉水瓶"], currentItemIdx = 0, answers = [], timeLeft = 180, timer;
+let isRunning = false, themeColor = '#FF0000', uploadedFileName = "未上传";
+let rift, particles = [];
+let audioContext, analyser, dataArray, audioEl;
+
+function setup() {
+    createCanvas(windowWidth, windowHeight).style('z-index', '1');
+    rift = new OrganicRift();
+}
+
+function draw() {
+    background(2, 0, 0);
+    let energy = 0;
+    if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0; for(let i=0; i<16; i++) sum += dataArray[i];
+        energy = (sum / 16) / 255;
+    }
+    rift.update(energy * 255);
+    rift.draw();
+    if (energy > 0.3) {
+        for(let i=0; i<5; i++) particles.push(new RiftParticle());
+    }
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        if (particles[i].life <= 0) particles.splice(i, 1);
+    }
+}
+
+async function initAudio(file) {
+    if (audioContext) audioContext.close();
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    if (audioEl) audioEl.remove();
+    audioEl = new Audio(); audioEl.src = URL.createObjectURL(file); audioEl.loop = true;
+    let source = audioContext.createMediaElementSource(audioEl);
+    source.connect(analyser); analyser.connect(audioContext.destination);
+    await audioEl.play();
+}
+
+class OrganicRift {
+    constructor() { this.noiseOffset = 0; }
+    update(bass) { this.bass = bass; this.noiseOffset += 0.05 + (bass/255)*0.1; }
+    draw() {
+        push(); translate(width/2, height/2);
+        let radius = 150 + this.bass * 0.4;
+        drawingContext.shadowBlur = 40 + this.bass * 0.3;
+        drawingContext.shadowColor = themeColor;
+        noStroke(); fill(10, 0, 0);
+        beginShape();
+        for (let a = 0; a < TWO_PI; a += 0.05) {
+            let r = radius + map(noise(map(cos(a),-1,1,0,3), map(sin(a),-1,1,0,3), this.noiseOffset), 0, 1, -60, 60);
+            vertex(r * cos(a), r * sin(a));
+        }
+        endShape(CLOSE);
+        stroke(themeColor); strokeWeight(3); noFill();
+        beginShape();
+        for (let a = 0; a < TWO_PI; a += 0.1) {
+            let r = radius + map(noise(map(cos(a),-1,1,10,13), map(sin(a),-1,1,10,13), this.noiseOffset), 0, 1, -50, 50);
+            vertex(r * cos(a), r * sin(a));
+        }
+        endShape(CLOSE);
+        pop();
+    }
+}
+
+class RiftParticle {
+    constructor() {
+        let angle = random(TWO_PI);
+        this.x = width/2 + cos(angle) * 40; this.y = height/2 + sin(angle) * 40;
+        let speed = 8 + random(15); this.vx = cos(angle)*speed; this.vy = sin(angle)*speed;
+        this.life = 1.0; this.size = 2 + random(5);
+        this.color = themeColor;
+    }
+    update() { this.x += this.vx; this.y += this.vy; this.life -= 0.02; }
+    draw() {
+        push(); drawingContext.globalAlpha = this.life;
+        fill(this.color); noStroke();
+        rect(this.x, this.y, this.size, this.size);
+        pop();
+    }
+}
+
+// 联动修改：单选 + 输入框/计时器颜色同步
+document.querySelectorAll('.color-dot').forEach(dot => {
+    dot.onclick = () => {
+        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        themeColor = dot.getAttribute('data-color');
+
+        const timerText = document.getElementById('timer-display');
+        const inputField = document.getElementById('aut-input');
+        timerText.style.color = themeColor;
+        inputField.style.borderColor = themeColor;
+        inputField.style.boxShadow = `0 0 10px ${themeColor}44`;
+    };
+});
+
+document.getElementById('audio-file').onchange = async (e) => {
+    let file = e.target.files[0];
+    if (file) {
+        uploadedFileName = file.name;
+        await initAudio(file);
+    }
+};
+
+document.getElementById('start-btn').onclick = async function() {
+    if (uploadedFileName === "未上传") return alert("请先上传音频！");
+    const btn = this; btn.disabled = true;
+    try {
+        const { data } = await _supabase.from('Participants').insert([{ group_tag: 'C2' }]).select();
+        window.currentParticipantId = data[0].id;
+
+        // --- 修复：隐藏面板并从显示流中移除 ---
+        const setupPanel = document.getElementById('setup-overlay');
+        setupPanel.classList.add('hidden');
+        setTimeout(() => { setupPanel.style.display = 'none'; }, 400);
+
+        document.getElementById('aut-ui').style.display = 'block';
+        isRunning = true;
+        startItemSession();
+    } catch (err) { alert("失败"); btn.disabled = false; }
+};
+
+function startItemSession() {
+    timeLeft = 180;
+    document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
+    document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+    setTimeout(() => document.getElementById('aut-input').focus(), 100);
+    if(timer) clearInterval(timer);
+    timer = setInterval(() => {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+        if (timeLeft <= 0) switchNextItem();
+    }, 1000);
+}
+
+function switchNextItem() {
+    if (currentItemIdx < items.length - 1) { currentItemIdx++; startItemSession(); }
+    else { finishAndUpload(); }
+}
+
+document.getElementById('aut-input').onkeypress = (e) => {
+    if (e.key === 'Enter' && e.target.value.trim() !== "") {
+        answers.push({ item: items[currentItemIdx], response: e.target.value.trim() });
+        e.target.value = "";
+        document.getElementById('ans-count').innerText = answers.filter(a => a.item === items[currentItemIdx]).length;
+    }
+};
+
+async function finishAndUpload() {
+    clearInterval(timer); if (audioEl) audioEl.pause();
+    const ui = document.getElementById('aut-ui');
+    ui.innerHTML = "<h3>数据上传中...</h3>";
+    await _supabase.from('experiment_results_A').insert([{
+        participant_id: window.currentParticipantId,
+        is_customized: true,
+        mode_type: "LH-C",
+        music_genre: "歌名: " + uploadedFileName + " | 颜色: " + themeColor,
+        fluency_score: answers.length,
+        user_answers: JSON.stringify(answers)
+    }]);
+    ui.innerHTML = `<h3 style='color:#00ff00;'>上传成功！实验结束。</h3>`;
+}
+
+document.getElementById('next-item-btn').onclick = () => { if(confirm("跳过当前物品？")) switchNextItem(); };
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+</script>
+</body>
+</html>
