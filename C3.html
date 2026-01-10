@@ -19,6 +19,14 @@
             transition: 0.4s ease;
         }
 
+        /* 新增：顶部返回按钮样式 */
+        .back-link {
+            display: flex; align-items: center; gap: 5px;
+            color: #8899aa; text-decoration: none; font-size: 13px; margin-bottom: 15px;
+            transition: 0.2s;
+        }
+        .back-link:hover { color: #aaccff; }
+
         .config-section { text-align: left; margin-bottom: 25px; }
         .config-section h2 { font-size: 18px; margin: 0 0 10px 0; color: #aaccff; letter-spacing: 1px; }
 
@@ -49,11 +57,16 @@
         }
 
         .hidden { opacity: 0; pointer-events: none; transform: translateX(-50px); }
+
+        /* 答题结束后的返回按钮样式 */
+        .return-btn { margin-top: 20px; padding: 10px 25px; background: #223355; color: #fff; border: 1px solid #4466aa; border-radius: 50px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="setup-overlay">
+    <a href="C.html" class="back-link">← 返回情境中心</a>
+
     <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid rgba(170,204,255,0.2); padding-bottom: 10px;">
         <p style="font-size: 13px; color: #8899aa; line-height: 1.6; margin: 0;">
             欢迎参加本次实验。在此环节中，你可以通过上传音乐和调节颜色来构建你心目中的<strong>“悲伤情境”</strong>。请在调整满意后，点击下方按钮开始正式的创造力测试。请尽可能多的写出题目中物品的功能
@@ -104,7 +117,7 @@ function setup() {
 }
 
 function draw() {
-    background(5, 5, 15, 50); // 较低的透明度实现雨丝拖尾感
+    background(5, 5, 15, 50);
 
     let energy = 0;
     if (analyser) {
@@ -141,7 +154,6 @@ class RainDrop {
         this.y = -random(100);
         this.speed = random(0.5, 1.8);
         this.len = random(12, 28);
-        // 随机分配初始颜色索引
         this.cIndex = floor(random(selectedColors.length));
     }
     update(energy) {
@@ -149,7 +161,6 @@ class RainDrop {
         if (this.y > height) this.reset();
     }
     draw() {
-        // 实现颜色间的渐变效果
         let baseColor = selectedColors[this.cIndex] || '#aaccff';
         let c = color(baseColor);
         stroke(red(c), green(c), blue(c), 150);
@@ -158,7 +169,6 @@ class RainDrop {
     }
 }
 
-// 颜色多选逻辑
 document.querySelectorAll('.color-dot').forEach(dot => {
     dot.onclick = () => {
         const colorVal = dot.getAttribute('data-color');
@@ -170,7 +180,6 @@ document.querySelectorAll('.color-dot').forEach(dot => {
             dot.classList.add('active');
             selectedColors.push(colorVal);
         }
-        // 同步修改 UI 颜色
         document.getElementById('timer-display').style.color = selectedColors[0];
         document.getElementById('aut-input').style.borderColor = selectedColors[0];
     };
@@ -191,7 +200,6 @@ document.getElementById('start-btn').onclick = async function() {
         const { data } = await _supabase.from('Participants').insert([{ group_tag: 'C3' }]).select();
         window.currentParticipantId = data[0].id;
 
-        // 面板消失逻辑
         const setupPanel = document.getElementById('setup-overlay');
         setupPanel.classList.add('hidden');
         setTimeout(() => { setupPanel.style.display = 'none'; }, 400);
@@ -207,6 +215,8 @@ function startItemSession() {
     document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
     document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
     document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+    document.getElementById('ans-count').innerText = answers.filter(a => a.item === items[currentItemIdx]).length;
+
     setTimeout(() => document.getElementById('aut-input').focus(), 100);
     if(timer) clearInterval(timer);
     timer = setInterval(() => {
@@ -229,19 +239,35 @@ document.getElementById('aut-input').onkeypress = (e) => {
     }
 };
 
+// 2. 实验结束后的自动返回逻辑
 async function finishAndUpload() {
     clearInterval(timer); if (audioEl) audioEl.pause();
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>忧郁数据上传中...</h3>";
-    await _supabase.from('experiment_results_A').insert([{
-        participant_id: window.currentParticipantId,
-        is_customized: true,
-        mode_type: "LL-C",
-        music_genre: "歌名: " + uploadedFileName + " | 颜色库: " + selectedColors.join(','),
-        fluency_score: answers.length,
-        user_answers: JSON.stringify(answers)
-    }]);
-    ui.innerHTML = `<h3 style='color:#aaccff;'>上传成功！实验结束。</h3>`;
+
+    try {
+        await _supabase.from('experiment_results_A').insert([{
+            participant_id: window.currentParticipantId,
+            is_customized: true,
+            mode_type: "LL-C",
+            music_genre: "歌名: " + uploadedFileName + " | 颜色库: " + selectedColors.join(','),
+            fluency_score: answers.length,
+            user_answers: JSON.stringify(answers)
+        }]);
+
+        ui.innerHTML = `
+            <h3 style='color:#aaccff;'>上传成功！本环节实验结束。</h3>
+            <p style="color:#8899aa; font-size:14px;">3秒后将为您返回情境中心...</p>
+            <button onclick="location.href='C.html'" class="return-btn">立即返回</button>
+        `;
+
+        setTimeout(() => {
+            location.href = 'C.html';
+        }, 3000);
+
+    } catch (err) {
+        ui.innerHTML = `<h3 style='color:red;'>上传失败，请检查网络并重试</h3>`;
+    }
 }
 
 document.getElementById('next-item-btn').onclick = () => { if(confirm("跳过当前物品？")) switchNextItem(); };

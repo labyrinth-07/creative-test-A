@@ -10,7 +10,7 @@
         body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Helvetica Neue', Arial, sans-serif; user-select: none; }
         #canvas-container { width: 100vw; height: 100vh; position: absolute; z-index: 1; }
 
-        /* 左侧配置面板 */
+        /* 左侧悬浮配置面板 */
         #setup-overlay {
             position: fixed; top: 20px; left: 20px; width: 340px;
             background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);
@@ -18,6 +18,14 @@
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); border: 1px solid rgba(255, 255, 255, 0.5);
             transition: 0.4s ease;
         }
+
+        /* 新增：顶部返回按钮样式 */
+        .back-link {
+            display: flex; align-items: center; gap: 5px;
+            color: #888; text-decoration: none; font-size: 13px; margin-bottom: 15px;
+            transition: 0.2s;
+        }
+        .back-link:hover { color: #ff80ab; }
 
         .config-section { text-align: left; margin-bottom: 25px; }
         .config-section h2 { font-size: 18px; margin: 0 0 10px 0; color: #ff80ab; letter-spacing: 1px; }
@@ -45,11 +53,17 @@
         }
 
         .hidden { opacity: 0; pointer-events: none; transform: translateX(-50px); }
+
+        /* 答题结束后的返回按钮样式 */
+        .return-btn { margin-top: 20px; padding: 10px 25px; background: #fff; color: #ff80ab; border: 2px solid #ff80ab; border-radius: 50px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .return-btn:hover { background: #ff80ab; color: #fff; }
     </style>
 </head>
 <body>
 
 <div id="setup-overlay">
+    <a href="C.html" class="back-link">← 返回情境中心</a>
+
     <div style="text-align: left; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
         <p style="font-size: 13px; color: #777; line-height: 1.6; margin: 0;">欢迎。你可以通过上传音乐和选择和谐的<b>“双色粒子组”</b>来定制你的恬静云境。请在调整满意后，点击下方按钮开始正式的创造力测试。请尽可能多的写出题目中物品的功能</p>
     </div>
@@ -59,39 +73,39 @@
         <input type="file" id="audio-file" accept="audio/*" style="font-size:12px;">
     </div>
 
-<div class="palette-group" id="combo-container">
-    <div class="combo-option active" data-c1="#845ef7" data-c2="#22b8cf">
-        <div class="color-preview">
-            <div class="swatch" style="background:#845ef7"></div>
-            <div class="swatch" style="background:#22b8cf"></div>
+    <div class="palette-group" id="combo-container">
+        <div class="combo-option active" data-c1="#845ef7" data-c2="#22b8cf">
+            <div class="color-preview">
+                <div class="swatch" style="background:#845ef7"></div>
+                <div class="swatch" style="background:#22b8cf"></div>
+            </div>
+            <span>丁香海盐</span>
         </div>
-        <span>丁香海盐</span>
-    </div>
 
-    <div class="combo-option" data-c1="#ff8787" data-c2="#63e6be">
-        <div class="color-preview">
-            <div class="swatch" style="background:#ff8787"></div>
-            <div class="swatch" style="background:#63e6be"></div>
+        <div class="combo-option" data-c1="#ff8787" data-c2="#63e6be">
+            <div class="color-preview">
+                <div class="swatch" style="background:#ff8787"></div>
+                <div class="swatch" style="background:#63e6be"></div>
+            </div>
+            <span>蜜桃青提</span>
         </div>
-        <span>蜜桃青提</span>
-    </div>
 
-    <div class="combo-option" data-c1="#fcc419" data-c2="#9775fa">
-        <div class="color-preview">
-            <div class="swatch" style="background:#fcc419"></div>
-            <div class="swatch" style="background:#9775fa"></div>
+        <div class="combo-option" data-c1="#fcc419" data-c2="#9775fa">
+            <div class="color-preview">
+                <div class="swatch" style="background:#fcc419"></div>
+                <div class="swatch" style="background:#9775fa"></div>
+            </div>
+            <span>晨曦薰衣草</span>
         </div>
-        <span>晨曦薰衣草</span>
-    </div>
 
-    <div class="combo-option" data-c1="#51cf66" data-c2="#339af0">
-        <div class="color-preview">
-            <div class="swatch" style="background:#51cf66"></div>
-            <div class="swatch" style="background:#339af0"></div>
+        <div class="combo-option" data-c1="#51cf66" data-c2="#339af0">
+            <div class="color-preview">
+                <div class="swatch" style="background:#51cf66"></div>
+                <div class="swatch" style="background:#339af0"></div>
+            </div>
+            <span>森林薄荷</span>
         </div>
-        <span>森林薄荷</span>
     </div>
-</div>
     <button id="start-btn">锁定环境并答题</button>
 </div>
 
@@ -164,7 +178,6 @@
         vAlpha = 0.4 + density * 0.3;
         vec4 mvPosition = modelViewMatrix * vec4(newPos, 1.0);
         gl_Position = projectionMatrix * mvPosition;
-        // 完全保留原版的点大小缩放公式
         gl_PointSize = (aSize * uPixelRatio) * (115.0 / -mvPosition.z);
     }
 </script>
@@ -196,18 +209,15 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.getElementById('canvas-container').appendChild(renderer.domElement);
 
 const geometry = new THREE.BufferGeometry();
-// --- 完全还原原版粒子参数 ---
 const particleCount = 100000;
 const positions = new Float32Array(particleCount * 3);
 const sizes = new Float32Array(particleCount);
 for (let i = 0; i < particleCount; i++) {
-    // 还原原版分布公式
     const r = 32 * Math.pow(Math.random(), 1.0/3.0);
     const theta = Math.random() * 2 * Math.PI, phi = Math.acos(2 * Math.random() - 1);
     positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
     positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
     positions[i*3+2] = r * Math.cos(phi);
-    // 还原原版尺寸概率
     sizes[i] = Math.random() < 0.9 ? 1.8 : 4.2;
 }
 geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -220,15 +230,14 @@ const material = new THREE.ShaderMaterial({
         uTime: { value: 0 },
         uAudio: { value: 0 },
         uPixelRatio: { value: renderer.getPixelRatio() },
-        uColor1: { value: new THREE.Color(0x1adbb3) }, // 初始薄荷
-        uColor2: { value: new THREE.Color(0xff8ca6) }  // 初始樱粉
+        uColor1: { value: new THREE.Color(0x845ef7) },
+        uColor2: { value: new THREE.Color(0x22b8cf) }
     },
     transparent: true, depthWrite: false, blending: THREE.NormalBlending
 });
 const nebula = new THREE.Points(geometry, material);
 scene.add(nebula);
 
-// --- 颜色切换逻辑 ---
 document.querySelectorAll('.combo-option').forEach(opt => {
     opt.onclick = () => {
         document.querySelectorAll('.combo-option').forEach(el => el.classList.remove('active'));
@@ -242,7 +251,6 @@ document.querySelectorAll('.combo-option').forEach(opt => {
     };
 });
 
-// --- 音频处理 ---
 document.getElementById('audio-file').onchange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -265,7 +273,6 @@ document.getElementById('audio-file').onchange = (e) => {
     reader.readAsDataURL(file);
 };
 
-// 立即启动渲染循环，确保预览可见
 animate();
 
 document.getElementById('start-btn').onclick = async function() {
@@ -287,6 +294,9 @@ function startItemSession() {
     timeLeft = 180;
     document.getElementById('item-display').innerText = `物品：${items[currentItemIdx]}`;
     document.getElementById('timer-display').innerText = `剩余时间: ${timeLeft}s`;
+    document.getElementById('progress-text').innerText = `进度：${currentItemIdx + 1} / 3`;
+    document.getElementById('ans-count').innerText = answers.filter(a => a.item === items[currentItemIdx]).length;
+
     setTimeout(() => document.getElementById('aut-input').focus(), 100);
     if(timer) clearInterval(timer);
     timer = setInterval(() => {
@@ -309,20 +319,36 @@ document.getElementById('aut-input').onkeypress = (e) => {
     }
 };
 
+// 2. 实验结束后的自动返回逻辑
 async function finishAndUpload() {
     clearInterval(timer); if (audioSound) audioSound.stop();
     const ui = document.getElementById('aut-ui');
     ui.innerHTML = "<h3>数据提交中...</h3>";
     const activeCombo = document.querySelector('.combo-option.active span').innerText;
-    await _supabase.from('experiment_results_A').insert([{
-        participant_id: window.currentParticipantId,
-        is_customized: true,
-        mode_type: "HL-C",
-        music_genre: "歌名: " + uploadedFileName + " | 色组: " + activeCombo,
-        fluency_score: answers.length,
-        user_answers: JSON.stringify(answers)
-    }]);
-    ui.innerHTML = `<h3 style='color:#ff80ab;'>上传成功！实验结束。</h3>`;
+
+    try {
+        await _supabase.from('experiment_results_A').insert([{
+            participant_id: window.currentParticipantId,
+            is_customized: true,
+            mode_type: "HL-C",
+            music_genre: "歌名: " + uploadedFileName + " | 色组: " + activeCombo,
+            fluency_score: answers.length,
+            user_answers: JSON.stringify(answers)
+        }]);
+
+        ui.innerHTML = `
+            <h3 style='color:#ff80ab;'>上传成功！本环节实验结束。</h3>
+            <p style="color:#666; font-size:14px;">3秒后将为您返回情境中心...</p>
+            <button onclick="location.href='C.html'" class="return-btn">立即返回</button>
+        `;
+
+        setTimeout(() => {
+            location.href = 'C.html';
+        }, 3000);
+
+    } catch (err) {
+        ui.innerHTML = `<h3 style='color:red;'>上传失败，请检查网络并重试</h3>`;
+    }
 }
 
 function animate() {
@@ -340,7 +366,6 @@ function animate() {
         smoothedTime += deltaTime * 0.05;
         material.uniforms.uTime.value = smoothedTime;
     }
-    // 还原原版旋转速度
     nebula.rotation.y += 0.0008;
     renderer.render(scene, camera);
 }
